@@ -20,11 +20,11 @@
 #include "esp_hosted_transport_init.h"
 
 #if TEST_RAW_TP || ESP_PKT_STATS
-static const char TAG[] = "stats";
+static char const TAG[] = "stats";
 #endif
 
 #if ESP_PKT_STATS || TEST_RAW_TP
-#define ESP_PKT_STATS_REPORT_INTERVAL  10
+#define ESP_PKT_STATS_REPORT_INTERVAL 10
 struct pkt_stats_t pkt_stats;
 #endif
 
@@ -34,13 +34,13 @@ struct pkt_stats_t pkt_stats;
  */
 static esp_err_t log_real_time_stats(TickType_t xTicksToWait) {
     TaskStatus_t *start_array = NULL, *end_array = NULL;
-    UBaseType_t start_array_size, end_array_size;
-    uint32_t start_run_time, end_run_time;
-    esp_err_t ret;
+    UBaseType_t   start_array_size, end_array_size;
+    uint32_t      start_run_time, end_run_time;
+    esp_err_t     ret;
 
     /*Allocate array to store current task states*/
     start_array_size = uxTaskGetNumberOfTasks() + ARRAY_SIZE_OFFSET;
-    start_array = malloc(sizeof(TaskStatus_t) * start_array_size);
+    start_array      = malloc(sizeof(TaskStatus_t) * start_array_size);
     if (start_array == NULL) {
         ret = ESP_ERR_NO_MEM;
         goto exit;
@@ -56,7 +56,7 @@ static esp_err_t log_real_time_stats(TickType_t xTicksToWait) {
 
     /*Allocate array to store tasks states post delay*/
     end_array_size = uxTaskGetNumberOfTasks() + ARRAY_SIZE_OFFSET;
-    end_array = malloc(sizeof(TaskStatus_t) * end_array_size);
+    end_array      = malloc(sizeof(TaskStatus_t) * end_array_size);
     if (end_array == NULL) {
         ret = ESP_ERR_NO_MEM;
         goto exit;
@@ -75,7 +75,7 @@ static esp_err_t log_real_time_stats(TickType_t xTicksToWait) {
         goto exit;
     }
 
-    ESP_LOGI(TAG,"| Task | Run Time | Percentage\n");
+    ESP_LOGI(TAG, "| Task | Run Time | Percentage\n");
     /*Match each task in start_array to those in the end_array*/
     for (int i = 0; i < start_array_size; i++) {
         int k = -1;
@@ -84,48 +84,51 @@ static esp_err_t log_real_time_stats(TickType_t xTicksToWait) {
                 k = j;
                 /*Mark that task have been matched by overwriting their handles*/
                 start_array[i].xHandle = NULL;
-                end_array[j].xHandle = NULL;
+                end_array[j].xHandle   = NULL;
                 break;
             }
         }
         /*Check if matching task found*/
         if (k >= 0) {
             uint32_t task_elapsed_time = end_array[k].ulRunTimeCounter - start_array[i].ulRunTimeCounter;
-            uint32_t percentage_time = (task_elapsed_time * 100UL) / (total_elapsed_time * portNUM_PROCESSORS);
-            ESP_LOGI(TAG,"| %s | %d | %d%%\n", start_array[i].pcTaskName, task_elapsed_time, percentage_time);
+            uint32_t percentage_time   = (task_elapsed_time * 100UL) / (total_elapsed_time * portNUM_PROCESSORS);
+            ESP_LOGI(TAG, "| %s | %d | %d%%\n", start_array[i].pcTaskName, task_elapsed_time, percentage_time);
         }
     }
 
     /*Print unmatched tasks*/
     for (int i = 0; i < start_array_size; i++) {
         if (start_array[i].xHandle != NULL) {
-            ESP_LOGI(TAG,"| %s | Deleted\n", start_array[i].pcTaskName);
+            ESP_LOGI(TAG, "| %s | Deleted\n", start_array[i].pcTaskName);
         }
     }
     for (int i = 0; i < end_array_size; i++) {
         if (end_array[i].xHandle != NULL) {
-            ESP_LOGI(TAG,"| %s | Created\n", end_array[i].pcTaskName);
+            ESP_LOGI(TAG, "| %s | Created\n", end_array[i].pcTaskName);
         }
     }
     ret = ESP_OK;
 
-exit:    /*Common return path*/
-	if (start_array)
-		free(start_array);
-	if (end_array)
-		free(end_array);
+exit: /*Common return path*/
+    if (start_array) {
+        free(start_array);
+    }
+    if (end_array) {
+        free(end_array);
+    }
     return ret;
 }
 
 static void log_runtime_stats_task(void* pvParameters) {
     while (1) {
-        ESP_LOGI(TAG,"\n\nGetting real time stats over %d ticks\n", STATS_TICKS);
+        ESP_LOGI(TAG, "\n\nGetting real time stats over %d ticks\n", STATS_TICKS);
         if (log_real_time_stats(STATS_TICKS) == ESP_OK) {
-            ESP_LOGI(TAG,"Real time stats obtained\n");
-        } else {
-            ESP_LOGE(TAG,"Error getting real time stats\n");
+            ESP_LOGI(TAG, "Real time stats obtained\n");
         }
-        vTaskDelay(pdMS_TO_TICKS(1000*2));
+        else {
+            ESP_LOGE(TAG, "Error getting real time stats\n");
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000 * 2));
     }
 }
 #endif
@@ -134,139 +137,135 @@ static void log_runtime_stats_task(void* pvParameters) {
 uint64_t test_raw_tp_rx_len;
 uint64_t test_raw_tp_tx_len;
 
-void debug_update_raw_tp_rx_count(uint16_t len)
-{
-	test_raw_tp_rx_len += (len);
+void debug_update_raw_tp_rx_count(uint16_t len) {
+    test_raw_tp_rx_len += (len);
 }
 
 // static buffer to hold tx data during test
 DMA_ATTR static uint8_t tx_buf[TEST_RAW_TP__BUF_SIZE];
 
 extern volatile uint8_t datapath;
-static void raw_tp_tx_task(void* pvParameters)
-{
-	int ret;
-	interface_buffer_handle_t buf_handle = {0};
-	uint8_t *raw_tp_tx_buf = NULL;
-	uint32_t *ptr = NULL;
-	uint16_t i = 0;
 
-	sleep(5);
+static void raw_tp_tx_task(void* pvParameters) {
+    int                       ret;
+    interface_buffer_handle_t buf_handle    = {0};
+    uint8_t*                  raw_tp_tx_buf = NULL;
+    uint32_t*                 ptr           = NULL;
+    uint16_t                  i             = 0;
 
-	// initialise the static buffer
-	raw_tp_tx_buf = tx_buf;
-	ptr = (uint32_t*)raw_tp_tx_buf;
-	// initialise the tx buffer
-	for (i=0; i<(TEST_RAW_TP__BUF_SIZE/4-1); i++, ptr++)
-		*ptr = 0xdeadbeef;
+    sleep(5);
 
-	for (;;) {
+    // initialise the static buffer
+    raw_tp_tx_buf = tx_buf;
+    ptr           = (uint32_t*)raw_tp_tx_buf;
+    // initialise the tx buffer
+    for (i = 0; i < (TEST_RAW_TP__BUF_SIZE / 4 - 1); i++, ptr++) {
+        *ptr = 0xdeadbeef;
+    }
 
-		if (!datapath) {
-			sleep(1);
-			continue;
-		}
+    for (;;) {
 
-		buf_handle.if_type = ESP_TEST_IF;
-		buf_handle.if_num = 0;
+        if (!datapath) {
+            sleep(1);
+            continue;
+        }
 
-		buf_handle.payload = raw_tp_tx_buf;
-		buf_handle.payload_len = TEST_RAW_TP__BUF_SIZE;
-		// free the buffer after it has been sent
-		buf_handle.free_buf_handle = NULL;
-		buf_handle.priv_buffer_handle = buf_handle.payload;
+        buf_handle.if_type = ESP_TEST_IF;
+        buf_handle.if_num  = 0;
 
-		ret = send_to_host_queue(&buf_handle, PRIO_Q_OTHERS);
+        buf_handle.payload     = raw_tp_tx_buf;
+        buf_handle.payload_len = TEST_RAW_TP__BUF_SIZE;
+        // free the buffer after it has been sent
+        buf_handle.free_buf_handle    = NULL;
+        buf_handle.priv_buffer_handle = buf_handle.payload;
 
-		if (ret) {
-			ESP_LOGE(TAG,"Failed to send to queue\n");
-			continue;
-		}
-		test_raw_tp_tx_len += (TEST_RAW_TP__BUF_SIZE);
-	}
+        ret = send_to_host_queue(&buf_handle, PRIO_Q_OTHERS);
+
+        if (ret) {
+            ESP_LOGE(TAG, "Failed to send to queue\n");
+            continue;
+        }
+        test_raw_tp_tx_len += (TEST_RAW_TP__BUF_SIZE);
+    }
 }
 #endif
 
 #if TEST_RAW_TP || ESP_PKT_STATS
 
-static void stats_timer_func(void* arg)
-{
+static void stats_timer_func(void* arg) {
 #if TEST_RAW_TP
-	static int32_t cur = 0;
-	double actual_bandwidth_rx = 0;
-	double actual_bandwidth_tx = 0;
-	int32_t div = 1024;
+    static int32_t cur                 = 0;
+    double         actual_bandwidth_rx = 0;
+    double         actual_bandwidth_tx = 0;
+    int32_t        div                 = 1024;
 
-	actual_bandwidth_tx = (test_raw_tp_tx_len*8)/TEST_RAW_TP__TIMEOUT;
-	actual_bandwidth_rx = (test_raw_tp_rx_len*8)/TEST_RAW_TP__TIMEOUT;
+    actual_bandwidth_tx = (test_raw_tp_tx_len * 8) / TEST_RAW_TP__TIMEOUT;
+    actual_bandwidth_rx = (test_raw_tp_rx_len * 8) / TEST_RAW_TP__TIMEOUT;
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-	ESP_LOGI(TAG,"%lu-%lu sec       Rx: %.2f Tx: %.2f kbps", cur, cur + TEST_RAW_TP__TIMEOUT, actual_bandwidth_rx/div, actual_bandwidth_tx/div);
+    ESP_LOGI(TAG, "%lu-%lu sec       Rx: %.2f Tx: %.2f kbps", cur, cur + TEST_RAW_TP__TIMEOUT,
+             actual_bandwidth_rx / div, actual_bandwidth_tx / div);
 #else
-	ESP_LOGI(TAG,"%u-%u sec       Rx: %.2f Tx: %.2f kbps", cur, cur + TEST_RAW_TP__TIMEOUT, actual_bandwidth_rx/div, actual_bandwidth_tx/div);
+    ESP_LOGI(TAG, "%u-%u sec       Rx: %.2f Tx: %.2f kbps", cur, cur + TEST_RAW_TP__TIMEOUT, actual_bandwidth_rx / div,
+             actual_bandwidth_tx / div);
 #endif
-	cur += TEST_RAW_TP__TIMEOUT;
-	test_raw_tp_rx_len = test_raw_tp_tx_len = 0;
+    cur += TEST_RAW_TP__TIMEOUT;
+    test_raw_tp_rx_len = test_raw_tp_tx_len = 0;
 #endif
 #if ESP_PKT_STATS
-	ESP_LOGI(TAG, "slave StaRxQLoad: %8lu \nH=>S: sta: in: %8lu out: %8lu fail: %8lu \nH<=S: sta: in: %8lu out: %8lu \n  serial : in: %8lu rsp: %8lu  evt: %8lu",
-			pkt_stats.slave_wifi_rx_msg_loaded,
-			pkt_stats.hs_bus_sta_in,pkt_stats.hs_bus_sta_out, pkt_stats.hs_bus_sta_fail,
-			pkt_stats.sta_sh_in,pkt_stats.sta_sh_out,
-			pkt_stats.serial_rx, pkt_stats.serial_tx_total, pkt_stats.serial_tx_evt);
+    ESP_LOGI(TAG,
+             "slave StaRxQLoad: %8lu \nH=>S: sta: in: %8lu out: %8lu fail: %8lu \nH<=S: sta: in: %8lu out: %8lu \n  "
+             "serial : in: %8lu rsp: %8lu  evt: %8lu",
+             pkt_stats.slave_wifi_rx_msg_loaded, pkt_stats.hs_bus_sta_in, pkt_stats.hs_bus_sta_out,
+             pkt_stats.hs_bus_sta_fail, pkt_stats.sta_sh_in, pkt_stats.sta_sh_out, pkt_stats.serial_rx,
+             pkt_stats.serial_tx_total, pkt_stats.serial_tx_evt);
 
 #endif
 }
 
-static void start_timer_to_display_stats(int periodic_time_sec)
-{
-	test_args_t args = {0};
-	esp_timer_handle_t raw_tp_timer = {0};
-	esp_timer_create_args_t create_args = {
-			.callback = &stats_timer_func,
-			.arg = &args,
-			.name = "raw_tp_timer",
-	};
+static void start_timer_to_display_stats(int periodic_time_sec) {
+    test_args_t             args         = {0};
+    esp_timer_handle_t      raw_tp_timer = {0};
+    esp_timer_create_args_t create_args  = {
+         .callback = &stats_timer_func,
+         .arg      = &args,
+         .name     = "raw_tp_timer",
+    };
 
-	ESP_ERROR_CHECK(esp_timer_create(&create_args, &raw_tp_timer));
+    ESP_ERROR_CHECK(esp_timer_create(&create_args, &raw_tp_timer));
 
-	args.timer = raw_tp_timer;
+    args.timer = raw_tp_timer;
 
-	ESP_ERROR_CHECK(esp_timer_start_periodic(raw_tp_timer, SEC_TO_USEC(periodic_time_sec)));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(raw_tp_timer, SEC_TO_USEC(periodic_time_sec)));
 }
 #endif
-
 
 #if TEST_RAW_TP
-void process_test_capabilities(uint8_t capabilities)
-{
-	ESP_LOGD(TAG, "capabilites: %d", capabilities);
-	if ((capabilities & ESP_TEST_RAW_TP__ESP_TO_HOST) ||
-		(capabilities & ESP_TEST_RAW_TP__BIDIRECTIONAL)) {
-		assert(xTaskCreate(raw_tp_tx_task , "raw_tp_tx_task",
-						   CONFIG_ESP_DEFAULT_TASK_STACK_SIZE, NULL ,
-						   CONFIG_ESP_DEFAULT_TASK_PRIO, NULL) == pdTRUE);
-	}
+void process_test_capabilities(uint8_t capabilities) {
+    ESP_LOGD(TAG, "capabilites: %d", capabilities);
+    if ((capabilities & ESP_TEST_RAW_TP__ESP_TO_HOST) || (capabilities & ESP_TEST_RAW_TP__BIDIRECTIONAL)) {
+        assert(xTaskCreate(raw_tp_tx_task, "raw_tp_tx_task", CONFIG_ESP_DEFAULT_TASK_STACK_SIZE, NULL,
+                           CONFIG_ESP_DEFAULT_TASK_PRIO, NULL) == pdTRUE);
+    }
 }
 #endif
 
-void create_debugging_tasks(void)
-{
+void create_debugging_tasks(void) {
 #ifdef CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS
-	assert(xTaskCreate(log_runtime_stats_task, "log_runtime_stats_task",
-				CONFIG_ESP_DEFAULT_TASK_STACK_SIZE, NULL,
-				CONFIG_ESP_DEFAULT_TASK_PRIO, NULL) == pdTRUE);
+    assert(xTaskCreate(log_runtime_stats_task, "log_runtime_stats_task", CONFIG_ESP_DEFAULT_TASK_STACK_SIZE, NULL,
+                       CONFIG_ESP_DEFAULT_TASK_PRIO, NULL) == pdTRUE);
 #endif
 
 #if TEST_RAW_TP || ESP_PKT_STATS
-	start_timer_to_display_stats(ESP_PKT_STATS_REPORT_INTERVAL);
+    start_timer_to_display_stats(ESP_PKT_STATS_REPORT_INTERVAL);
 #endif
 }
 
 uint8_t debug_get_raw_tp_conf(void) {
-	uint8_t raw_tp_cap = 0;
+    uint8_t raw_tp_cap = 0;
 #if TEST_RAW_TP
-	raw_tp_cap |= ESP_TEST_RAW_TP;
-	ESP_LOGI(TAG, "\n\n***** Slave: Raw Throughput testing (Report per %u sec)*****\n", CONFIG_ESP_RAW_TP_REPORT_INTERVAL);
+    raw_tp_cap |= ESP_TEST_RAW_TP;
+    ESP_LOGI(TAG, "\n\n***** Slave: Raw Throughput testing (Report per %u sec)*****\n",
+             CONFIG_ESP_RAW_TP_REPORT_INTERVAL);
 #endif
-	return raw_tp_cap;
+    return raw_tp_cap;
 }

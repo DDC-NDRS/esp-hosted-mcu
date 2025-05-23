@@ -23,6 +23,6 @@
 #include "esp_hosted_transport_init.h"
 
 typedef struct {
-	interface_context_t *context;
+    interface_context_t* context;
 } adapter;
 #endif

@@ -20,7 +20,7 @@
 #ifdef CONFIG_BT_ENABLED
 #include "esp_bt.h"
 
-void slave_bt_init_uart(esp_bt_controller_config_t *cfg);
+void slave_bt_init_uart(esp_bt_controller_config_t* cfg);
 #endif
 
 #endif

@@ -24,10 +24,9 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 
-#define SEC_TO_MSEC(x)                 (x*1000)
-#define MSEC_TO_USEC(x)                (x*1000)
-#define SEC_TO_USEC(x)                 (x*1000*1000)
-
+#define SEC_TO_MSEC(x)  (x * 1000)
+#define MSEC_TO_USEC(x) (x * 1000)
+#define SEC_TO_USEC(x)  (x * 1000 * 1000)
 
 /* Stats CONFIG:
  *
@@ -45,16 +44,16 @@
  *    These tests do not replace iperf stats as iperf operates in network layer.
  *    To tune the packet size, use TEST_RAW_TP__BUF_SIZE
  */
-#define TEST_RAW_TP                    CONFIG_ESP_RAW_THROUGHPUT_TRANSPORT
+#define TEST_RAW_TP CONFIG_ESP_RAW_THROUGHPUT_TRANSPORT
 
 #ifdef CONFIG_ESP_PKT_STATS
 #define ESP_PKT_STATS 1
 #endif
 
 #ifdef CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS
-  /* Stats to show task wise CPU utilization */
-  #define STATS_TICKS                  pdMS_TO_TICKS(1000*2)
-  #define ARRAY_SIZE_OFFSET            5
+/* Stats to show task wise CPU utilization */
+#define STATS_TICKS       pdMS_TO_TICKS(1000 * 2)
+#define ARRAY_SIZE_OFFSET 5
 
 void debug_runtime_stats_task(void* pvParameters);
 #endif
@@ -72,10 +71,10 @@ void debug_runtime_stats_task(void* pvParameters);
 #include "interface.h"
 
 typedef struct {
-	esp_timer_handle_t timer;
-	size_t cur_interval;
-	int64_t t_start;
-	SemaphoreHandle_t done;
+    esp_timer_handle_t timer;
+    size_t             cur_interval;
+    int64_t            t_start;
+    SemaphoreHandle_t  done;
 } test_args_t;
 #endif
 
@@ -98,30 +97,29 @@ typedef struct {
  *
  * TCP: Assess MSS and decide similar to above
  */
-#define TEST_RAW_TP__BUF_SIZE        CONFIG_ESP_RAW_TP_ESP_TO_HOST_PKT_LEN
-#define TEST_RAW_TP__TIMEOUT         CONFIG_ESP_RAW_TP_REPORT_INTERVAL
+#define TEST_RAW_TP__BUF_SIZE CONFIG_ESP_RAW_TP_ESP_TO_HOST_PKT_LEN
+#define TEST_RAW_TP__TIMEOUT  CONFIG_ESP_RAW_TP_REPORT_INTERVAL
 
 void debug_update_raw_tp_rx_count(uint16_t len);
 #endif
 
 #if ESP_PKT_STATS || TEST_RAW_TP
 struct pkt_stats_t {
-	uint32_t sta_sh_in;
-	uint32_t sta_sh_out;
-	uint32_t hs_bus_sta_in;
-	uint32_t hs_bus_sta_out;
-	uint32_t hs_bus_sta_fail;
-	uint32_t serial_rx;
-	uint32_t serial_tx_total;
-	uint32_t serial_tx_evt;
-	uint32_t slave_wifi_rx_msg_loaded;
+    uint32_t sta_sh_in;
+    uint32_t sta_sh_out;
+    uint32_t hs_bus_sta_in;
+    uint32_t hs_bus_sta_out;
+    uint32_t hs_bus_sta_fail;
+    uint32_t serial_rx;
+    uint32_t serial_tx_total;
+    uint32_t serial_tx_evt;
+    uint32_t slave_wifi_rx_msg_loaded;
 };
 
 extern struct pkt_stats_t pkt_stats;
 #endif
 
-
-void process_test_capabilities(uint8_t capabilities);
-void create_debugging_tasks(void);
+void    process_test_capabilities(uint8_t capabilities);
+void    create_debugging_tasks(void);
 uint8_t debug_get_raw_tp_conf(void);
-#endif  /*__STATS__H__*/
+#endif /*__STATS__H__*/

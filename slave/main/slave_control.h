@@ -19,20 +19,20 @@
 #include "interface.h"
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-  #define TIMEOUT_IN_SEC          (1000 / portTICK_PERIOD_MS)
+#define TIMEOUT_IN_SEC (1000 / portTICK_PERIOD_MS)
 #else
-  #define TIMEOUT_IN_SEC          (1000 / portTICK_RATE_MS)
+#define TIMEOUT_IN_SEC (1000 / portTICK_RATE_MS)
 #endif
 
-#define SSID_LENGTH             32
-#define PASSWORD_LENGTH         64
-#define VENDOR_OUI_BUF          3
+#define SSID_LENGTH     32
+#define PASSWORD_LENGTH 64
+#define VENDOR_OUI_BUF  3
 
-esp_err_t data_transfer_handler(uint32_t session_id,const uint8_t *inbuf,
-		ssize_t inlen,uint8_t **outbuf, ssize_t *outlen, void *priv_data);
-esp_err_t rpc_evt_handler(uint32_t session_id,const uint8_t *inbuf,
-		ssize_t inlen, uint8_t **outbuf, ssize_t *outlen, void *priv_data);
-void send_event_to_host(int event_id);
-void send_event_data_to_host(int event_id, void *data, int size);
+esp_err_t data_transfer_handler(uint32_t session_id, uint8_t const* inbuf, ssize_t inlen, uint8_t** outbuf,
+                                ssize_t* outlen, void* priv_data);
+esp_err_t rpc_evt_handler(uint32_t session_id, uint8_t const* inbuf, ssize_t inlen, uint8_t** outbuf, ssize_t* outlen,
+                          void* priv_data);
+void      send_event_to_host(int event_id);
+void      send_event_data_to_host(int event_id, void* data, int size);
 
 #endif /*__SLAVE_CONTROL__H__*/

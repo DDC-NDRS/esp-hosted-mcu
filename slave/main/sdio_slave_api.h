@@ -19,7 +19,7 @@
 
 #if CONFIG_SOC_SDIO_SLAVE_SUPPORTED
 #else
-    #error "SDIO is not supported for this target. Please use SPI"
+#error "SDIO is not supported for this target. Please use SPI"
 #endif
 
 #endif
