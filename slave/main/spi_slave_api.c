@@ -112,7 +112,7 @@ static char const TAG[] = "SPI_DRIVER";
 #endif
 
 static interface_context_t context;
-static interface_handle_t  if_handle_g;
+static interface_handle_t  m_if_hndl;
 static SemaphoreHandle_t   spi_tx_sem;
 static SemaphoreHandle_t   spi_rx_sem;
 #if HS_DEASSERT_ON_CS
@@ -870,8 +870,8 @@ static interface_handle_t* esp_spi_init(void) {
     ret = xSemaphoreTake(wait_cs_deassert_sem, 0);
 #endif
 
-    memset(&if_handle_g, 0, sizeof(if_handle_g));
-    if_handle_g.state = INIT;
+    memset(&m_if_hndl, 0, sizeof(m_if_hndl));
+    m_if_hndl.state = INIT;
 
     spi_tx_sem = xSemaphoreCreateCounting(SPI_TX_QUEUE_SIZE * 3, 0);
     assert(spi_tx_sem != NULL);
@@ -899,7 +899,7 @@ static interface_handle_t* esp_spi_init(void) {
 
     usleep(500);
 
-    return &if_handle_g;
+    return &m_if_hndl;
 }
 
 static int32_t esp_spi_write(interface_handle_t* handle, interface_buffer_handle_t* buf_handle) {

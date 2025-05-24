@@ -40,9 +40,9 @@ static uint8_t sdio_slave_rx_buffer[BUFFER_NUM][BUFFER_SIZE];
 #define SDIO_MEMPOOL_NUM_BLOCKS 40
 static struct hosted_mempool* buf_mp_tx_g;
 
-interface_context_t context;
-interface_handle_t  if_handle_g;
-static char const   TAG[] = "SDIO_SLAVE";
+static interface_context_t m_if_ctx;
+static interface_handle_t  m_if_hndl;
+static char const TAG[] = "SDIO_SLAVE";
 
 #define SDIO_RX_QUEUE_SIZE CONFIG_ESP_SDIO_RX_Q_SIZE
 
@@ -83,7 +83,7 @@ static void sdio_rx_task(void* pvParameters);
 static void sdio_tx_done_task(void* pvParameters);
 #endif
 
-if_ops_t if_ops = {
+static if_ops_t const if_ops = {
     .init   = sdio_init,
     .write  = sdio_write,
     .read   = sdio_read,
@@ -162,28 +162,28 @@ static void stop_rx_data_throttling_if_needed(void) {
 
 interface_context_t* interface_insert_driver(int (*event_handler)(uint8_t val)) {
     ESP_LOGI(TAG, "Using SDIO interface");
-    memset(&context, 0, sizeof(context));
+    memset(&m_if_ctx, 0, sizeof(m_if_ctx));
 
-    context.type          = SDIO;
-    context.if_ops        = &if_ops;
-    context.event_handler = event_handler;
+    m_if_ctx.type   = SDIO;
+    m_if_ctx.if_ops = &if_ops;
+    m_if_ctx.event_handler = event_handler;
 
-    return &context;
+    return &m_if_ctx;
 }
 
-int interface_remove_driver() {
-    memset(&context, 0, sizeof(context));
+int interface_remove_driver(void) {
+    memset(&m_if_ctx, 0, sizeof(m_if_ctx));
     return 0;
 }
 
 IRAM_ATTR static void event_cb(uint8_t val) {
     if (val == ESP_RESET) {
-        sdio_reset(&if_handle_g);
+        sdio_reset(&m_if_hndl);
         return;
     }
 
-    if (context.event_handler) {
-        context.event_handler(val);
+    if (m_if_ctx.event_handler) {
+        m_if_ctx.event_handler(val);
     }
 }
 
@@ -379,10 +379,10 @@ static interface_handle_t* sdio_init(void) {
         return NULL;
     }
 
-    memset(&if_handle_g, 0, sizeof(if_handle_g));
+    memset(&m_if_hndl, 0, sizeof(m_if_hndl));
 
     sdio_mempool_create();
-    if_handle_g.state = INIT;
+    m_if_hndl.state = INIT;
 
 #if !SIMPLIFIED_SDIO_SLAVE
     assert(xTaskCreate(sdio_rx_task, "sdio_rx_task", CONFIG_ESP_DEFAULT_TASK_STACK_SIZE, NULL,
@@ -392,7 +392,7 @@ static interface_handle_t* sdio_init(void) {
     assert(xTaskCreate(sdio_tx_done_task, "sdio_tx_done_task", CONFIG_ESP_DEFAULT_TASK_STACK_SIZE, NULL,
                        CONFIG_ESP_DEFAULT_TASK_PRIO, NULL) == pdTRUE);
 #endif
-    return &if_handle_g;
+    return &m_if_hndl;
 }
 
 /* wait for sdio to finish tx, then free the buffer */

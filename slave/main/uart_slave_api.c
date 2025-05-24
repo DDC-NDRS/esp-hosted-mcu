@@ -94,7 +94,7 @@ if_ops_t if_ops = {
     .deinit = h_uart_deinit,
 };
 
-static interface_handle_t  if_handle_g;
+static interface_handle_t  m_if_hndl;
 static interface_context_t context;
 
 static struct hosted_mempool* buf_mp_tx_g;
@@ -504,10 +504,10 @@ static interface_handle_t* h_uart_init(void) {
                        CONFIG_ESP_DEFAULT_TASK_PRIO, NULL) == pdTRUE);
 
     // data path opened
-    memset(&if_handle_g, 0, sizeof(if_handle_g));
-    if_handle_g.state = INIT;
+    memset(&m_if_hndl, 0, sizeof(m_if_hndl));
+    m_if_hndl.state = INIT;
 
-    return &if_handle_g;
+    return &m_if_hndl;
 }
 
 static void h_uart_deinit(interface_handle_t* handle) {

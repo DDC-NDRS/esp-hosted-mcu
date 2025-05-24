@@ -43,7 +43,7 @@
 
 static char const* TAG = "fg_mcu_slave";
 
-// #define BYPASS_TX_PRIORITY_Q 1
+#define BYPASS_TX_PRIORITY_Q    0
 #ifdef CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS
 #define STATS_TICKS             pdMS_TO_TICKS(1000 * 2)
 #define ARRAY_SIZE_OFFSET       5
@@ -68,17 +68,17 @@ volatile uint8_t g_datapath = 0;
 volatile uint8_t station_connected = 0;
 volatile uint8_t softap_started = 0;
 
-interface_context_t* if_context = NULL;
-interface_handle_t* if_handle = NULL;
+static interface_context_t* m_if_ctx;
+static interface_handle_t* m_if_hndl;
 slave_config_t slv_cfg_g;
 slave_state_t slv_state_g;
 
-#if !BYPASS_TX_PRIORITY_Q
-static QueueHandle_t meta_to_host_queue = NULL;
-static QueueHandle_t to_host_queue[MAX_PRIORITY_QUEUES] = {NULL};
+#if (BYPASS_TX_PRIORITY_Q == 0)
+static QueueHandle_t m_meta_to_host_que = nullptr;
+static QueueHandle_t m_to_host_que[MAX_PRIORITY_QUEUES] = {NULL};
 #endif
 
-static protocomm_t* pc_pserial;
+static protocomm_t* m_pc_serial;
 
 struct rx_ctx_t {
     uint8_t valid;
@@ -95,7 +95,7 @@ uint8_t ap_mac[BSSID_BYTES_SIZE] = {0};
 #error "Hosted UART Interface cannot be used with Bluetooth HCI over UART"
 #endif
 
-static void print_firmware_version(void) {
+static void ncp_print_fw_ver(void) {
     ESP_LOGI(TAG, "*********************************************************************");
     ESP_LOGI(TAG, "                ESP-Hosted-MCU Slave FW version :: %d.%d.%d                        ",
              PROJECT_VERSION_MAJOR_1, PROJECT_VERSION_MINOR_1, PROJECT_VERSION_PATCH_1);
@@ -123,7 +123,7 @@ static void print_firmware_version(void) {
     ESP_LOGI(TAG, "*********************************************************************");
 }
 
-static uint8_t get_capabilities(void) {
+static uint8_t ncp_get_capabilities(void) {
     uint8_t cap = 0;
 
     ESP_LOGI(TAG, "Supported features are:");
@@ -146,7 +146,7 @@ static uint8_t get_capabilities(void) {
     return cap;
 }
 
-static uint32_t get_capabilities_ext(void) {
+static uint32_t ncp_get_capabilities_ext(void) {
     uint32_t ext_cap = 0;
 
     ESP_LOGI(TAG, "Supported extended features are:");
@@ -262,9 +262,10 @@ void ncp_proc_tx_pkt(interface_buffer_handle_t& buf_hndl) {
     /* Check if data path is not yet open */
     if (g_datapath == 0) {
         /* Post processing */
-        if (buf_hndl.free_buf_handle && buf_hndl.priv_buffer_handle) {
+        if ((buf_hndl.free_buf_handle != nullptr) &&
+            (buf_hndl.priv_buffer_handle != nullptr)) {
             buf_hndl.free_buf_handle(buf_hndl.priv_buffer_handle);
-            buf_hndl.priv_buffer_handle = NULL;
+            buf_hndl.priv_buffer_handle = nullptr;
         }
 
         ESP_LOGD(TAG, "Data path stopped");
@@ -272,22 +273,25 @@ void ncp_proc_tx_pkt(interface_buffer_handle_t& buf_hndl) {
         return;
     }
 
-    if (if_context && if_context->if_ops && if_context->if_ops->write) {
-        if_context->if_ops->write(if_handle, &buf_hndl);
+    if ((m_if_ctx != nullptr) &&
+        (m_if_ctx->if_ops != nullptr) &&
+        (m_if_ctx->if_ops->write != nullptr)) {
+        m_if_ctx->if_ops->write(m_if_hndl, &buf_hndl);
     }
 
     /* Post processing */
-    if (buf_hndl.free_buf_handle && buf_hndl.priv_buffer_handle) {
+    if ((buf_hndl.free_buf_handle != nullptr) &&
+        (buf_hndl.priv_buffer_handle != nullptr)) {
         buf_hndl.free_buf_handle(buf_hndl.priv_buffer_handle);
-        buf_hndl.priv_buffer_handle = NULL;
+        buf_hndl.priv_buffer_handle = nullptr;
     }
 }
 
-#if !BYPASS_TX_PRIORITY_Q
+#if (BYPASS_TX_PRIORITY_Q == 0)
 /* Send data to host */
 void ncp_snd_tsk(void* pvParameters) {
     interface_buffer_handle_t buf_hndl {};
-    uint8_t queue_type = 0;
+    uint8_t queue_type;
     BaseType_t xReturn;
 
     while (true) {
@@ -296,9 +300,9 @@ void ncp_snd_tsk(void* pvParameters) {
             continue;
         }
 
-        xReturn = xQueueReceive(meta_to_host_queue, &queue_type, portMAX_DELAY);
+        xReturn = xQueueReceive(m_meta_to_host_que, &queue_type, portMAX_DELAY);
         if (xReturn == pdPASS) {
-            xReturn = xQueueReceive(to_host_queue[queue_type], &buf_hndl, portMAX_DELAY);
+            xReturn = xQueueReceive(m_to_host_que[queue_type], &buf_hndl, portMAX_DELAY);
             if (xReturn == pdPASS) {
                 ncp_proc_tx_pkt(buf_hndl);
             }
@@ -308,7 +312,7 @@ void ncp_snd_tsk(void* pvParameters) {
 #endif
 
 void ncp_parse_protobuf_req(void) {
-    protocomm_pserial_data_ready(pc_pserial, m_rx_ctx.data,
+    protocomm_pserial_data_ready(m_pc_serial, m_rx_ctx.data,
                                  m_rx_ctx.len, UNKNOWN_RPC_MSG_ID);
 }
 
@@ -316,14 +320,14 @@ void send_event_to_host(int event_id) {
     #if ESP_PKT_STATS
     pkt_stats.serial_tx_evt++;
     #endif
-    protocomm_pserial_data_ready(pc_pserial, NULL, 0, event_id);
+    protocomm_pserial_data_ready(m_pc_serial, NULL, 0, event_id);
 }
 
 void send_event_data_to_host(int event_id, void* data, int size) {
     #if ESP_PKT_STATS
     pkt_stats.serial_tx_evt++;
     #endif
-    protocomm_pserial_data_ready(pc_pserial, (uint8_t*)data, size, event_id);
+    protocomm_pserial_data_ready(m_pc_serial, (uint8_t*)data, size, event_id);
 }
 
 void ncp_proc_serial_rx_pkt(uint8_t* buf) {
@@ -568,9 +572,9 @@ void ncp_rcv_tsk(void* pvParameters) {
             continue;
         }
 
-        /* receive data from transport layer */
-        if (if_context && if_context->if_ops && if_context->if_ops->read) {
-            int len = if_context->if_ops->read(if_handle, &buf_hndl);
+        /* Receive data from transport layer */
+        if (m_if_ctx && m_if_ctx->if_ops && m_if_ctx->if_ops->read) {
+            int len = m_if_ctx->if_ops->read(m_if_hndl, &buf_hndl);
             if (len <= 0) {
                 usleep(10 * 1000);
                 continue;
@@ -581,7 +585,7 @@ void ncp_rcv_tsk(void* pvParameters) {
     }
 }
 
-static ssize_t serial_read_data(uint8_t* data, ssize_t len) {
+static ssize_t ncp_serial_rd_dat(uint8_t* data, ssize_t len) {
     len = min(len, m_rx_ctx.len);
     if (m_rx_ctx.valid) {
         memcpy(data, m_rx_ctx.data, len);
@@ -597,21 +601,21 @@ static ssize_t serial_read_data(uint8_t* data, ssize_t len) {
 }
 
 int send_to_host_queue(interface_buffer_handle_t* buf_hndl, uint8_t queue_type) {
-    #if BYPASS_TX_PRIORITY_Q
+    #if (BYPASS_TX_PRIORITY_Q == 1)
     ncp_proc_tx_pkt(buf_hndl);
     return ESP_OK;
     #else
-    int ret = xQueueSend(to_host_queue[queue_type], buf_hndl, portMAX_DELAY);
+    int ret = xQueueSend(m_to_host_que[queue_type], buf_hndl, portMAX_DELAY);
     if (ret != pdTRUE) {
         ESP_LOGE(TAG, "Failed to send buffer into queue[%u]\n", queue_type);
         return ESP_FAIL;
     }
 
     if (queue_type == PRIO_Q_SERIAL) {
-        ret = xQueueSendToFront(meta_to_host_queue, &queue_type, portMAX_DELAY);
+        ret = xQueueSendToFront(m_meta_to_host_que, &queue_type, portMAX_DELAY);
     }
     else {
-        ret = xQueueSend(meta_to_host_queue, &queue_type, portMAX_DELAY);
+        ret = xQueueSend(m_meta_to_host_que, &queue_type, portMAX_DELAY);
     }
 
     if (ret != pdTRUE) {
@@ -623,11 +627,11 @@ int send_to_host_queue(interface_buffer_handle_t* buf_hndl, uint8_t queue_type) 
     #endif
 }
 
-static esp_err_t serial_write_data(uint8_t* data, ssize_t len) {
+static esp_err_t ncp_serial_wr_dat(uint8_t* data, ssize_t len) {
     uint8_t* pos = data;
     int32_t left_len = len;
     int32_t frag_len = 0;
-    static uint16_t seq_num  = 0;
+    static uint16_t seq_num = 0;
 
     do {
         interface_buffer_handle_t buf_hndl {};
@@ -672,8 +676,8 @@ static esp_err_t serial_write_data(uint8_t* data, ssize_t len) {
 int event_handler(uint8_t val) {
     switch (val) {
         case ESP_OPEN_DATA_PATH :
-            if (if_handle) {
-                if_handle->state = ACTIVE;
+            if (m_if_hndl) {
+                m_if_hndl->state = ACTIVE;
                 g_datapath = 1;
                 ESP_EARLY_LOGI(TAG, "Start Data Path");
             }
@@ -684,9 +688,9 @@ int event_handler(uint8_t val) {
 
         case ESP_CLOSE_DATA_PATH :
             g_datapath = 0;
-            if (if_handle) {
+            if (m_if_hndl) {
                 ESP_EARLY_LOGI(TAG, "Stop Data Path");
-                if_handle->state = DEACTIVE;
+                m_if_hndl->state = DEACTIVE;
             }
             else {
                 ESP_EARLY_LOGI(TAG, "Failed to Stop Data Path");
@@ -844,7 +848,7 @@ static void IRAM_ATTR gpio_resetpin_isr_handler(void* arg) {
     }
 }
 
-static void register_reset_pin(gpio_num_t gpio_num) {
+static void ncp_reg_rst_pin(gpio_num_t gpio_num) {
     if (gpio_num != -1) {
         ESP_LOGI(TAG, "Using GPIO [%lu] as slave reset pin", gpio_num);
         gpio_reset_pin(gpio_num);
@@ -866,20 +870,19 @@ static void register_reset_pin(gpio_num_t gpio_num) {
 
 void app_main(void) {
     esp_err_t ret;
-    uint8_t   capa       = 0;
-    uint32_t  ext_capa   = 0;
-    uint8_t   prio_q_idx = 0;
+    uint8_t capa;
+    uint32_t ext_capa;
     BaseType_t xReturn;
+    esp_err_t err;
 
-    print_firmware_version();
-    register_reset_pin(gpio_num_t(CONFIG_ESP_GPIO_SLAVE_RESET));
+    ncp_print_fw_ver();
+    ncp_reg_rst_pin(gpio_num_t(CONFIG_ESP_GPIO_SLAVE_RESET));
 
-    capa     = get_capabilities();
-    ext_capa = get_capabilities_ext();
+    capa = ncp_get_capabilities();
+    ext_capa = ncp_get_capabilities_ext();
 
     /* Initialize NVS */
     ret = nvs_flash_init();
-
     if ((ret == ESP_ERR_NVS_NO_FREE_PAGES) ||
         (ret == ESP_ERR_NVS_NEW_VERSION_FOUND)) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -889,42 +892,44 @@ void app_main(void) {
 
     initialise_bluetooth();
 
-    pc_pserial = protocomm_new();
-    if (pc_pserial == NULL) {
+    m_pc_serial = protocomm_new();
+    if (m_pc_serial == nullptr) {
         ESP_LOGE(TAG, "Failed to allocate memory for new instance of protocomm ");
         return;
     }
 
     /* Endpoint for control command responses */
-    if (protocomm_add_endpoint(pc_pserial, RPC_EP_NAME_RSP,
-                               data_transfer_handler, NULL) != ESP_OK) {
+    err = protocomm_add_endpoint(m_pc_serial, RPC_EP_NAME_RSP,
+                                 data_transfer_handler, NULL);
+    if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to add enpoint");
         return;
     }
 
     /* Endpoint for control notifications for events subscribed by user */
-    if (protocomm_add_endpoint(pc_pserial, RPC_EP_NAME_EVT,
-                               rpc_evt_handler, NULL) != ESP_OK) {
+    err = protocomm_add_endpoint(m_pc_serial, RPC_EP_NAME_EVT,
+                                 rpc_evt_handler, NULL);
+    if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to add enpoint");
         return;
     }
 
-    protocomm_pserial_start(pc_pserial, serial_write_data, serial_read_data);
+    protocomm_pserial_start(m_pc_serial, ncp_serial_wr_dat, ncp_serial_rd_dat);
 
-    if_context = interface_insert_driver(event_handler);
+    m_if_ctx = interface_insert_driver(event_handler);
 
     #if CONFIG_ESP_SPI_HOST_INTERFACE
     g_datapath = 1;
     #endif
 
-    if (!if_context || !if_context->if_ops) {
+    if ((m_if_ctx == nullptr) ||
+        (m_if_ctx->if_ops == nullptr)) {
         ESP_LOGE(TAG, "Failed to insert driver\n");
         return;
     }
 
-    if_handle = if_context->if_ops->init();
-
-    if (!if_handle) {
+    m_if_hndl = m_if_ctx->if_ops->init();
+    if (m_if_hndl == nullptr) {
         ESP_LOGE(TAG, "Failed to initialize driver\n");
         return;
     }
@@ -934,13 +939,13 @@ void app_main(void) {
                           CONFIG_ESP_DEFAULT_TASK_PRIO, NULL);
     assert(xReturn == pdTRUE);
 
-    #if !BYPASS_TX_PRIORITY_Q
-    meta_to_host_queue = xQueueCreate(TO_HOST_QUEUE_SIZE * 3, sizeof(uint8_t));
-    assert(meta_to_host_queue);
-    for (prio_q_idx = 0; prio_q_idx < MAX_PRIORITY_QUEUES; prio_q_idx++) {
-        to_host_queue[prio_q_idx] = xQueueCreate(TO_HOST_QUEUE_SIZE,
+    #if (BYPASS_TX_PRIORITY_Q == 0)
+    m_meta_to_host_que = xQueueCreate(TO_HOST_QUEUE_SIZE * 3, sizeof(uint8_t));
+    assert(m_meta_to_host_que);
+    for (uint_fast8_t prio_q_idx = 0; prio_q_idx < MAX_PRIORITY_QUEUES; prio_q_idx++) {
+        m_to_host_que[prio_q_idx] = xQueueCreate(TO_HOST_QUEUE_SIZE,
             sizeof(interface_buffer_handle_t));
-        assert(to_host_queue[prio_q_idx]);
+        assert(m_to_host_que[prio_q_idx]);
     }
 
     xReturn = xTaskCreate(ncp_snd_tsk, "ncp_snd_tsk",

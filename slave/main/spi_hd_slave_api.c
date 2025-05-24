@@ -128,7 +128,7 @@ static SemaphoreHandle_t flow_ctrl_sem = NULL;
 
 static volatile bool       data_ready_gpio_active = false;
 static interface_context_t context;
-static interface_handle_t  if_handle_g;
+static interface_handle_t  m_if_hndl;
 static SemaphoreHandle_t   spi_hd_rx_sem;
 static QueueHandle_t       spi_hd_rx_queue[MAX_PRIORITY_QUEUES];
 
@@ -623,10 +623,10 @@ static interface_handle_t* esp_spi_hd_init(void) {
                        CONFIG_ESP_DEFAULT_TASK_PRIO, NULL) == pdTRUE);
 
     // data path opened. Continue
-    memset(&if_handle_g, 0, sizeof(if_handle_g));
-    if_handle_g.state = INIT;
+    memset(&m_if_hndl, 0, sizeof(m_if_hndl));
+    m_if_hndl.state = INIT;
 
-    return &if_handle_g;
+    return &m_if_hndl;
 }
 
 static void esp_spi_hd_deinit(interface_handle_t* handle) {

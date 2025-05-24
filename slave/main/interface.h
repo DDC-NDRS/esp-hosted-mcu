@@ -59,14 +59,16 @@ typedef enum {
 
 typedef struct {
     union {
-#ifdef CONFIG_ESP_SDIO_HOST_INTERFACE
+        #ifdef CONFIG_ESP_SDIO_HOST_INTERFACE
         sdio_slave_buf_handle_t sdio_buf_handle;
-#endif
-#ifdef CONFIG_ESP_SPI_HD_HOST_INTERFACE
+        #endif
+
+        #ifdef CONFIG_ESP_SPI_HD_HOST_INTERFACE
         spi_slave_hd_data_t* spi_hd_trans_handle;
-#endif
+        #endif
+
         wlan_buf_handle_t wlan_buf_handle;
-        void*             priv_buffer_handle;
+        void* priv_buffer_handle;
     };
 
     uint8_t  if_type;
@@ -75,9 +77,10 @@ typedef struct {
     uint8_t  flag;
     uint16_t payload_len;
     uint16_t seq_num;
-#if CONFIG_ESP_SPI_HD_HOST_INTERFACE || CONFIG_ESP_UART_HOST_INTERFACE
+
+    #if CONFIG_ESP_SPI_HD_HOST_INTERFACE || CONFIG_ESP_UART_HOST_INTERFACE
     uint8_t wifi_flow_ctrl_en;
-#endif
+    #endif
 
     void (*free_buf_handle)(void* buf_handle);
 } interface_buffer_handle_t;
@@ -112,8 +115,8 @@ typedef struct {
 
 typedef struct {
     transport_layer type;
-    void*           priv;
-    if_ops_t*       if_ops;
+    void* priv;
+    if_ops_t const* if_ops;
     int (*event_handler)(uint8_t bitmap);
 } interface_context_t;
 
