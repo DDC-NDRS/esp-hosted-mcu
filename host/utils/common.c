@@ -27,60 +27,57 @@ DEFINE_LOG_TAG(utils);
 
 /** Exported variables **/
 
-
 /** Function declaration **/
 
 /** Exported Functions **/
 /**
-  * @brief  debug buffer print
-  * @param  buff - input buffer to print in hex
-  *         rx_len - buff len
-  *         human_str - helping string to describe about buffer
-  * @retval None
-  */
+ * @brief  debug buffer print
+ * @param  buff - input buffer to print in hex
+ *         rx_len - buff len
+ *         human_str - helping string to describe about buffer
+ * @retval None
+ */
 #if DEBUG_HEX_STREAM_PRINT
-char print_buff[MAX_SPI_BUFFER_SIZE*3];
+char print_buff[MAX_SPI_BUFFER_SIZE * 3];
 #endif
 
-uint16_t hton_short (uint16_t x)
-{
+uint16_t hton_short(uint16_t x) {
 #if BYTE_ORDER == BIG_ENDIAN
-  return x;
+    return x;
 #elif BYTE_ORDER == LITTLE_ENDIAN
-  uint16_t val = 0;
+    uint16_t val = 0;
 
-  val = (x &0x00FF)<<8;
-  val |= (x &0xFF00)>>8;
-
-  return val;
-#else
-# error "not able to identify endianness"
-#endif
-}
-
-uint32_t hton_long (uint32_t x)
-{
-#if BYTE_ORDER == BIG_ENDIAN
-  return x;
-#elif BYTE_ORDER == LITTLE_ENDIAN
-    uint32_t val = (x&0xFF000000) >> 24;
-
-    val |= (x&0x00FF0000) >> 8;
-    val |= (x&0x0000FF00) << 8;
-    val |= (x&0x000000FF) << 24;
+    val = (x & 0x00FF) << 8;
+    val |= (x & 0xFF00) >> 8;
 
     return val;
 #else
-# error "not able to identify endianness"
+#error "not able to identify endianness"
+#endif
+}
+
+uint32_t hton_long(uint32_t x) {
+#if BYTE_ORDER == BIG_ENDIAN
+    return x;
+#elif BYTE_ORDER == LITTLE_ENDIAN
+    uint32_t val = (x & 0xFF000000) >> 24;
+
+    val |= (x & 0x00FF0000) >> 8;
+    val |= (x & 0x0000FF00) << 8;
+    val |= (x & 0x000000FF) << 24;
+
+    return val;
+#else
+#error "not able to identify endianness"
 #endif
 }
 
 /**
-  * @brief  Calculate minimum
-  * @param  x - number
-  *         y - number
-  * @retval minimum
-  */
+ * @brief  Calculate minimum
+ * @param  x - number
+ *         y - number
+ * @retval minimum
+ */
 int min(int x, int y) {
     return (x < y) ? x : y;
 }

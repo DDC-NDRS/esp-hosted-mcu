@@ -11,8 +11,8 @@
 #include "esp_hosted_transport.h"
 #include "os_wrapper.h"
 
-#define SIZE_OF_TYPE                1
-#define SIZE_OF_LENGTH              2
+#define SIZE_OF_TYPE   1
+#define SIZE_OF_LENGTH 2
 
 /*
  * The data written on serial driver file, `SERIAL_IF_FILE` from esp_hosted_transport.h
@@ -44,5 +44,5 @@ int transport_pserial_send(uint8_t* data, uint16_t data_length);
 
 /* Read and return number of bytes and buffer from serial interface
  **/
-uint8_t * transport_pserial_read(uint32_t *out_nbyte);
+uint8_t* transport_pserial_read(uint32_t* out_nbyte);
 #endif

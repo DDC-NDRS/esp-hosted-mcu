@@ -13,6 +13,6 @@ void hci_drv_init(void);
 void hci_drv_show_configuration(void);
 
 // Handles BT Rx
-int hci_rx_handler(interface_buffer_handle_t *buf_handle);
+int hci_rx_handler(interface_buffer_handle_t* buf_handle);
 
 #endif

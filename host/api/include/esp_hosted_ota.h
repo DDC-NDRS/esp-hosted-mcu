@@ -1,8 +1,8 @@
 /*
-* SPDX-FileCopyrightText: 2024 Espressif Systems (Shanghai) CO LTD
-*
-* SPDX-License-Identifier: Apache-2.0
-*/
+ * SPDX-FileCopyrightText: 2024 Espressif Systems (Shanghai) CO LTD
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 /* APIs to do OTA updates of the co-processor
  *
@@ -29,7 +29,7 @@
 #include "esp_err.h"
 
 /* Fetch OTA image from a web server (image_url) */
-esp_err_t esp_hosted_slave_ota(const char* image_url);
+esp_err_t esp_hosted_slave_ota(char const* image_url);
 #endif
 
 #endif /*__ESP_HOSTED_OTA_H__*/

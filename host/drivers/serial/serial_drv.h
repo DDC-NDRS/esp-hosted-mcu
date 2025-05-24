@@ -52,7 +52,7 @@ int rpc_platform_deinit(void);
  * Returns
  *      serial_drv_handle           :   Driver Handle
  */
-struct serial_drv_handle_t* serial_drv_open (const char* transport);
+struct serial_drv_handle_t* serial_drv_open(char const* transport);
 
 /*
  * serial_drv_write function writes in_count bytes
@@ -69,8 +69,7 @@ struct serial_drv_handle_t* serial_drv_open (const char* transport);
  * Returns
  *      SUCCESS(0) or FAILURE(-1) of above operation
  */
-int serial_drv_write (struct serial_drv_handle_t* serial_drv_handle,
-     uint8_t* buf, int in_count, int* out_count);
+int serial_drv_write(struct serial_drv_handle_t* serial_drv_handle, uint8_t* buf, int in_count, int* out_count);
 
 /*
  * serial_drv_read function gets buffer from serial driver
@@ -85,8 +84,7 @@ int serial_drv_write (struct serial_drv_handle_t* serial_drv_handle,
  *                                      caller will decode the protobuf
  */
 
-uint8_t * serial_drv_read(struct serial_drv_handle_t *serial_drv_handle,
-		uint32_t *out_nbyte);
+uint8_t* serial_drv_read(struct serial_drv_handle_t* serial_drv_handle, uint32_t* out_nbyte);
 
 /*
  * serial_drv_close function closes driver interface.
@@ -97,8 +95,7 @@ uint8_t * serial_drv_read(struct serial_drv_handle_t *serial_drv_handle,
  *      SUCCESS(0) or FAILURE(-1) of above operation
  */
 
-int serial_drv_close (struct serial_drv_handle_t** serial_drv_handle);
-
+int serial_drv_close(struct serial_drv_handle_t** serial_drv_handle);
 
 #ifdef __cplusplus
 }

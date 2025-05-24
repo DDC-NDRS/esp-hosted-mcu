@@ -36,7 +36,7 @@ extern "C" {
  *    This is opposite of TEST_RAW_TP__ESP_TO_HOST. when (a) TEST_RAW_TP__ESP_TO_HOST
  *    is disabled, it will automatically mean throughput to be measured from host to ESP
  */
-#define TEST_RAW_TP                    H_TEST_RAW_TP
+#define TEST_RAW_TP H_TEST_RAW_TP
 
 /* TEST_RAW_TP is disabled on production.
  * This is only to test the throughout over transport
@@ -55,10 +55,10 @@ extern "C" {
  * Host to ESP
  */
 #if 0
-#define TEST_RAW_TP__ESP_TO_HOST     1
-#define TEST_RAW_TP__HOST_TO_ESP     !TEST_RAW_TP__ESP_TO_HOST
+#define TEST_RAW_TP__ESP_TO_HOST 1
+#define TEST_RAW_TP__HOST_TO_ESP !TEST_RAW_TP__ESP_TO_HOST
 #endif
-#define TEST_RAW_TP__TIMEOUT         H_RAW_TP_REPORT_INTERVAL
+#define TEST_RAW_TP__TIMEOUT H_RAW_TP_REPORT_INTERVAL
 
 void update_test_raw_tp_rx_len(uint16_t len);
 void process_test_capabilities(uint8_t cap);
@@ -72,8 +72,7 @@ void process_test_capabilities(uint8_t cap);
  * TCP: Find MSS in nodes
  * H_ESP_PAYLOAD_HEADER_OFFSET is header size, which is not included in calcs
  */
-#define TEST_RAW_TP__BUF_SIZE    H_RAW_TP_PKT_LEN
-
+#define TEST_RAW_TP__BUF_SIZE H_RAW_TP_PKT_LEN
 
 #endif
 
@@ -82,50 +81,48 @@ void process_test_capabilities(uint8_t cap);
 #endif
 
 #if H_MEM_STATS
-struct mempool_stats
-{
-	uint32_t num_fresh_alloc;
-	uint32_t num_reuse;
-	uint32_t num_free;
+struct mempool_stats {
+    uint32_t num_fresh_alloc;
+    uint32_t num_reuse;
+    uint32_t num_free;
 };
 
-struct spi_stats
-{
-	int rx_alloc;
-	int rx_freed;
-	int tx_alloc;
-	int tx_dummy_alloc;
-	int tx_freed;
+struct spi_stats {
+    int rx_alloc;
+    int rx_freed;
+    int tx_alloc;
+    int tx_dummy_alloc;
+    int tx_freed;
 };
 
-struct nw_stats
-{
-	int tx_alloc;
-	int tx_freed;
+struct nw_stats {
+    int tx_alloc;
+    int tx_freed;
 };
 
 struct others_stats {
-	int tx_others_freed;
+    int tx_others_freed;
 };
 
 struct mem_stats {
-	struct mempool_stats mp_stats;
-	struct spi_stats spi_mem_stats;
-	struct nw_stats nw_mem_stats;
-	struct others_stats others;
+    struct mempool_stats mp_stats;
+    struct spi_stats     spi_mem_stats;
+    struct nw_stats      nw_mem_stats;
+    struct others_stats  others;
 };
 
 extern struct mem_stats h_stats_g;
 #endif
 
 #if ESP_PKT_STATS
-#define ESP_PKT_STATS_REPORT_INTERVAL  10
+#define ESP_PKT_STATS_REPORT_INTERVAL 10
+
 struct pkt_stats_t {
-	uint32_t sta_rx_in;
-	uint32_t sta_rx_out;
-	uint32_t sta_tx_in_pass;
-	uint32_t sta_tx_in_drop;
-	uint32_t sta_tx_out;
+    uint32_t sta_rx_in;
+    uint32_t sta_rx_out;
+    uint32_t sta_tx_in_pass;
+    uint32_t sta_tx_in_drop;
+    uint32_t sta_tx_out;
 };
 
 extern struct pkt_stats_t pkt_stats;

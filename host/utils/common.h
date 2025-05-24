@@ -28,82 +28,82 @@ extern "C" {
 #include "esp_err.h"
 #include "esp_hosted_transport.h"
 
-
 /** Constants/Macros **/
-#define MAX_NETWORK_INTERFACES            2
-#define STA_INTERFACE                     "ESP_STATION"
-#define SOFTAP_INTERFACE                  "ESP_SOFTAP"
+#define MAX_NETWORK_INTERFACES 2
+#define STA_INTERFACE          "ESP_STATION"
+#define SOFTAP_INTERFACE       "ESP_SOFTAP"
 
-#define UNUSED_VAR(x)                     (void)(x);
+#define UNUSED_VAR(x) (void)(x);
 
-#define MAX_SPI_BUFFER_SIZE               ESP_TRANSPORT_SPI_MAX_BUF_SIZE
-#define MAX_SDIO_BUFFER_SIZE              ESP_TRANSPORT_SDIO_MAX_BUF_SIZE
-#define MAX_SPI_HD_BUFFER_SIZE            ESP_TRANSPORT_SPI_HD_MAX_BUF_SIZE
-#define MAX_UART_BUFFER_SIZE              ESP_TRANSPORT_UART_MAX_BUF_SIZE
+#define MAX_SPI_BUFFER_SIZE    ESP_TRANSPORT_SPI_MAX_BUF_SIZE
+#define MAX_SDIO_BUFFER_SIZE   ESP_TRANSPORT_SDIO_MAX_BUF_SIZE
+#define MAX_SPI_HD_BUFFER_SIZE ESP_TRANSPORT_SPI_HD_MAX_BUF_SIZE
+#define MAX_UART_BUFFER_SIZE   ESP_TRANSPORT_UART_MAX_BUF_SIZE
 
-#define MAX_SUPPORTED_SDIO_CLOCK_MHZ      40
+#define MAX_SUPPORTED_SDIO_CLOCK_MHZ 40
 
-#define IP_ADDR_LEN                       4
-#define MAC_LEN                           6
-#define MIN_MAC_STRING_LEN                17
+#define IP_ADDR_LEN        4
+#define MAC_LEN            6
+#define MIN_MAC_STRING_LEN 17
 
 #ifndef BIT
-#define BIT(x)                            (1UL << (x))
+#define BIT(x) (1UL << (x))
 #endif
 
-#define FREQ_IN_MHZ(x)                    ((x)*1000000)
+#define FREQ_IN_MHZ(x) ((x) * 1000000)
 
-#define MHZ_TO_HZ(x) (1000000*(x))
+#define MHZ_TO_HZ(x) (1000000 * (x))
 
 #define SUCCESS 0
 #define FAILURE -1
 
 typedef enum stm_ret_s {
-	STM_OK                =  0,
-	STM_FAIL              = -1,
-	STM_FAIL_TIMEOUT      = -2,
-	STM_FAIL_INVALID_ARG  = -3,
-	STM_FAIL_NO_MEMORY    = -4,
-	STM_FAIL_NOT_FOUND    = -5,
-	STM_FAIL_NOT_FINISHED = -6,
-	STM_FAIL_ALIGNMENT    = -7
-}stm_ret_t;
+    STM_OK                = 0,
+    STM_FAIL              = -1,
+    STM_FAIL_TIMEOUT      = -2,
+    STM_FAIL_INVALID_ARG  = -3,
+    STM_FAIL_NO_MEMORY    = -4,
+    STM_FAIL_NOT_FOUND    = -5,
+    STM_FAIL_NOT_FINISHED = -6,
+    STM_FAIL_ALIGNMENT    = -7
+} stm_ret_t;
 
 typedef enum {
-	TRANSPORT_INACTIVE,
-	TRANSPORT_RX_ACTIVE,
-	TRANSPORT_TX_ACTIVE,
+    TRANSPORT_INACTIVE,
+    TRANSPORT_RX_ACTIVE,
+    TRANSPORT_TX_ACTIVE,
 } transport_drv_events_e;
 
 /** Exported Structures **/
 /* interface header */
 typedef struct {
-	union {
-		void *priv_buffer_handle;
-	};
-	uint8_t if_type;
-	uint8_t if_num;
-	uint8_t *payload;
-	uint8_t flag;
-	uint16_t payload_len;
-	uint16_t seq_num;
-	/* no need of memcpy at different layers */
-	uint8_t payload_zcopy;
+    union {
+        void* priv_buffer_handle;
+    };
 
-	void (*free_buf_handle)(void *buf_handle);
+    uint8_t  if_type;
+    uint8_t  if_num;
+    uint8_t* payload;
+    uint8_t  flag;
+    uint16_t payload_len;
+    uint16_t seq_num;
+    /* no need of memcpy at different layers */
+    uint8_t payload_zcopy;
+
+    void (*free_buf_handle)(void* buf_handle);
 } interface_buffer_handle_t;
 
 /** Exported variables **/
 
 /** Exported Functions **/
-uint16_t hton_short (uint16_t x);
-uint32_t hton_long (uint32_t x);
+uint16_t hton_short(uint16_t x);
+uint32_t hton_long(uint32_t x);
 
-#define ntoh_long hton_long
+#define ntoh_long  hton_long
 #define ntoh_short hton_short
 
-typedef unsigned char   u_char;
-typedef unsigned long   u_long;
+typedef unsigned char u_char;
+typedef unsigned long u_long;
 
 int min(int x, int y);
 #if 0
@@ -111,12 +111,13 @@ void hard_delay(int x);
 int get_num_from_string(int *val, char *arg);
 #endif
 
-#define H_FREE_PTR_WITH_FUNC(FreeFunc, FreePtr) do { \
-	if (FreeFunc && FreePtr) {             \
-		FreeFunc(FreePtr);                 \
-		FreePtr = NULL;                    \
-	}                                      \
-} while (0);
+#define H_FREE_PTR_WITH_FUNC(FreeFunc, FreePtr)                                                                        \
+    do {                                                                                                               \
+        if (FreeFunc && FreePtr) {                                                                                     \
+            FreeFunc(FreePtr);                                                                                         \
+            FreePtr = NULL;                                                                                            \
+        }                                                                                                              \
+    } while (0);
 
 #ifdef __cplusplus
 }

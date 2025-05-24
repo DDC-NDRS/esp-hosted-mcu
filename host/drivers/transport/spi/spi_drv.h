@@ -26,10 +26,9 @@ extern "C" {
 #include "transport_drv.h"
 #include "os_wrapper.h"
 
-
 /** Constants/Macros **/
-#define TO_SLAVE_QUEUE_SIZE               20
-#define FROM_SLAVE_QUEUE_SIZE             20
+#define TO_SLAVE_QUEUE_SIZE   20
+#define FROM_SLAVE_QUEUE_SIZE 20
 
 /** Exported Structures **/
 
@@ -44,4 +43,3 @@ extern "C" {
 #endif
 
 #endif
-

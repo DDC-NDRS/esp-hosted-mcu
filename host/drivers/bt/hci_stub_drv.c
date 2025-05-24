@@ -4,7 +4,7 @@
 #include "hci_drv.h"
 
 #include "esp_hosted_log.h"
-static const char TAG[] = "hci_stub_drv";
+static char const TAG[] = "hci_stub_drv";
 
 #if H_BT_HOST_ESP_NIMBLE
 #include "host/ble_hs_mbuf.h"
@@ -17,21 +17,18 @@ static const char TAG[] = "hci_stub_drv";
 
 #define WEAK __attribute__((weak))
 
-int hci_rx_handler(interface_buffer_handle_t *buf_handle)
-{
-	/* Hosted transport received BT packets, but Hosted was not
-	 * configured to handle BT packets. Drop them.
-	 */
-	return ESP_OK;
+int hci_rx_handler(interface_buffer_handle_t* buf_handle) {
+    /* Hosted transport received BT packets, but Hosted was not
+     * configured to handle BT packets. Drop them.
+     */
+    return ESP_OK;
 }
 
-void hci_drv_init(void)
-{
+void hci_drv_init(void) {
 }
 
-void hci_drv_show_configuration(void)
-{
-	ESP_LOGI(TAG, "Host BT Support: Disabled");
+void hci_drv_show_configuration(void) {
+    ESP_LOGI(TAG, "Host BT Support: Disabled");
 }
 
 #if H_BT_HOST_ESP_NIMBLE
@@ -53,41 +50,34 @@ void hci_drv_show_configuration(void)
  *   incoming data.
  */
 
-WEAK int ble_transport_to_ll_acl_impl(struct os_mbuf *om)
-{
-	os_mbuf_free_chain(om);
+WEAK int ble_transport_to_ll_acl_impl(struct os_mbuf* om) {
+    os_mbuf_free_chain(om);
 
-	return ESP_FAIL;
+    return ESP_FAIL;
 }
 
-WEAK int ble_transport_to_ll_cmd_impl(void *buf)
-{
-	ble_transport_free(buf);
+WEAK int ble_transport_to_ll_cmd_impl(void* buf) {
+    ble_transport_free(buf);
 
-	return ESP_FAIL;
+    return ESP_FAIL;
 }
 #endif // H_BT_HOST_ESP_NIMBLE
 
 #if H_BT_HOST_ESP_BLUEDROID
-WEAK void hosted_hci_bluedroid_open(void)
-{
+WEAK void hosted_hci_bluedroid_open(void) {
 }
 
-WEAK void hosted_hci_bluedroid_close(void)
-{
+WEAK void hosted_hci_bluedroid_close(void) {
 }
 
-WEAK void hosted_hci_bluedroid_send(uint8_t *data, uint16_t len)
-{
+WEAK void hosted_hci_bluedroid_send(uint8_t* data, uint16_t len) {
 }
 
-WEAK bool hosted_hci_bluedroid_check_send_available(void)
-{
-	return false;
+WEAK bool hosted_hci_bluedroid_check_send_available(void) {
+    return false;
 }
 
-WEAK esp_err_t hosted_hci_bluedroid_register_host_callback(const esp_bluedroid_hci_driver_callbacks_t *callback)
-{
-	return ESP_FAIL;
+WEAK esp_err_t hosted_hci_bluedroid_register_host_callback(esp_bluedroid_hci_driver_callbacks_t const* callback) {
+    return ESP_FAIL;
 }
 #endif // H_BT_HOST_ESP_BLUEDROID
