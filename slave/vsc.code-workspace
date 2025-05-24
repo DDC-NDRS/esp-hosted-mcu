@@ -1,0 +1,25 @@
+{
+    "folders": [
+        {
+            "path": "."
+        }
+    ],
+    "settings": {
+        "terminal.integrated.env.windows": {
+            "IDF_PYTHON_ENV_PATH": "C:\\toolchain\\esp\\idf_tools\\python_env\\idf5.5_py3.11_env"
+        },
+        "files.exclude": {
+            "**/70.build": true,
+            "**/.git": true,
+            "**/.hg": true,
+            "**/.svn": true,
+            "**/.vs": true,
+            "**/.settings": true,
+            "cmake_build": true,
+            "modules/pal/drv/*/**zephyr.cpp": true,
+        },
+        "files.associations": {
+            "*.inc": "cpp",
+        },
+    }
+}

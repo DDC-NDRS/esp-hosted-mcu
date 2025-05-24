@@ -1,0 +1,12 @@
+{
+  "C_Cpp.intelliSenseEngine": "default",
+  "editor.guides.indentation": false,
+  "idf.espIdfPath": "C:/toolchain/esp/esp-idf/5.5",
+  "idf.espIdfPathWin": "C:\\toolchain\\esp\\esp-idf\\5.5",
+  "idf.customExtraVars": {
+    "IDF_PATH": "C:/toolchain/esp/esp-idf/5.5"
+  },
+  "idf.openOcdConfigs": [
+    "board/esp32s3-builtin.cfg"
+  ]
+}

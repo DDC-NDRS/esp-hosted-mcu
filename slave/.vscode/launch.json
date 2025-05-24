@@ -1,0 +1,36 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "ESP32-C6_DBG",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/network_adapter.elf",
+      "cwd": "${workspaceFolder}",
+      "miDebuggerPath": "C:/toolchain/esp/idf_tools/tools/riscv32-esp-elf-gdb/16.2_20250324/riscv32-esp-elf-gdb/bin/riscv32-esp-elf-gdb.exe",
+      "setupCommands": [
+        {
+          "text": "cd ${workspaceFolder}/build"
+        },
+        {
+          "text": "file network_adapter.elf.elf"
+        },
+        {
+          "text": "-break-insert app_main"
+        }
+      ],
+      "stopAtEntry": true,
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "miDebuggerServerAddress": "localhost:3333",
+      "debugServerPath": "C:/toolchain/esp/idf_tools/tools/openocd-esp32/v0.12.0-esp32-20250422/openocd-esp32/bin/openocd.exe",
+      "debugServerArgs": "-f ${workspaceFolder}/../tools/openocd/esp32c6-builtin.cfg -c \"init\" -c \"reset halt\" -c \"esp appimage_offset 0x60000\"",
+      "serverStarted": "Info :",
+      "filterStderr": true,
+      "filterStdout": false,
+      "logging": {
+        "engineLogging": false
+      }
+    }
+  ]
+}
