@@ -80,12 +80,14 @@ static QueueHandle_t to_host_queue[MAX_PRIORITY_QUEUES] = {NULL};
 
 static protocomm_t* pc_pserial;
 
-static struct rx_data {
+struct rx_ctx_t {
     uint8_t valid;
     uint16_t cur_seq_no;
     int len;
     uint8_t data[4096];
-} r;
+};
+
+static struct rx_ctx_t m_rx_ctx;
 
 uint8_t ap_mac[BSSID_BYTES_SIZE] = {0};
 
@@ -180,7 +182,7 @@ static uint32_t get_capabilities_ext(void) {
 }
 
 esp_err_t wlan_ap_rx_callback(void* buffer, uint16_t len, void* eb) {
-    interface_buffer_handle_t buf_handle {};
+    interface_buffer_handle_t buf_hndl {};
 
     if (!buffer || !eb || (g_datapath == 0)) {
         if (eb) {
@@ -204,14 +206,14 @@ esp_err_t wlan_ap_rx_callback(void* buffer, uint16_t len, void* eb) {
     }
     #endif
 
-    buf_handle.if_type         = ESP_AP_IF;
-    buf_handle.if_num          = 0;
-    buf_handle.payload_len     = len;
-    buf_handle.payload         = (uint8_t*)buffer;
-    buf_handle.wlan_buf_handle = eb;
-    buf_handle.free_buf_handle = esp_wifi_internal_free_rx_buffer;
+    buf_hndl.if_type         = ESP_AP_IF;
+    buf_hndl.if_num          = 0;
+    buf_hndl.payload_len     = len;
+    buf_hndl.payload         = (uint8_t*)buffer;
+    buf_hndl.wlan_buf_handle = eb;
+    buf_hndl.free_buf_handle = esp_wifi_internal_free_rx_buffer;
 
-    if (send_to_host_queue(&buf_handle, PRIO_Q_OTHERS)) {
+    if (send_to_host_queue(&buf_hndl, PRIO_Q_OTHERS)) {
         goto DONE;
     }
 
@@ -223,7 +225,7 @@ DONE:
 }
 
 esp_err_t wlan_sta_rx_callback(void* buffer, uint16_t len, void* eb) {
-    interface_buffer_handle_t buf_handle {};
+    interface_buffer_handle_t buf_hndl {};
 
     if (!buffer || !eb || (g_datapath == 0)) {
         if (eb) {
@@ -233,18 +235,18 @@ esp_err_t wlan_sta_rx_callback(void* buffer, uint16_t len, void* eb) {
     }
     ESP_HEXLOGV("STA_Get", buffer, len);
 
-    buf_handle.if_type         = ESP_STA_IF;
-    buf_handle.if_num          = 0;
-    buf_handle.payload_len     = len;
-    buf_handle.payload         = (uint8_t*)buffer;
-    buf_handle.wlan_buf_handle = eb;
-    buf_handle.free_buf_handle = esp_wifi_internal_free_rx_buffer;
+    buf_hndl.if_type         = ESP_STA_IF;
+    buf_hndl.if_num          = 0;
+    buf_hndl.payload_len     = len;
+    buf_hndl.payload         = (uint8_t*)buffer;
+    buf_hndl.wlan_buf_handle = eb;
+    buf_hndl.free_buf_handle = esp_wifi_internal_free_rx_buffer;
 
     #if ESP_PKT_STATS
     pkt_stats.sta_sh_in++;
     #endif
 
-    if (send_to_host_queue(&buf_handle, PRIO_Q_OTHERS)) {
+    if (send_to_host_queue(&buf_hndl, PRIO_Q_OTHERS)) {
         goto DONE;
     }
 
@@ -256,13 +258,13 @@ DONE:
     return ESP_OK;
 }
 
-void process_tx_pkt(interface_buffer_handle_t* buf_handle) {
+void ncp_proc_tx_pkt(interface_buffer_handle_t& buf_hndl) {
     /* Check if data path is not yet open */
     if (g_datapath == 0) {
         /* Post processing */
-        if (buf_handle->free_buf_handle && buf_handle->priv_buffer_handle) {
-            buf_handle->free_buf_handle(buf_handle->priv_buffer_handle);
-            buf_handle->priv_buffer_handle = NULL;
+        if (buf_hndl.free_buf_handle && buf_hndl.priv_buffer_handle) {
+            buf_hndl.free_buf_handle(buf_hndl.priv_buffer_handle);
+            buf_hndl.priv_buffer_handle = NULL;
         }
 
         ESP_LOGD(TAG, "Data path stopped");
@@ -271,21 +273,22 @@ void process_tx_pkt(interface_buffer_handle_t* buf_handle) {
     }
 
     if (if_context && if_context->if_ops && if_context->if_ops->write) {
-        if_context->if_ops->write(if_handle, buf_handle);
+        if_context->if_ops->write(if_handle, &buf_hndl);
     }
 
     /* Post processing */
-    if (buf_handle->free_buf_handle && buf_handle->priv_buffer_handle) {
-        buf_handle->free_buf_handle(buf_handle->priv_buffer_handle);
-        buf_handle->priv_buffer_handle = NULL;
+    if (buf_hndl.free_buf_handle && buf_hndl.priv_buffer_handle) {
+        buf_hndl.free_buf_handle(buf_hndl.priv_buffer_handle);
+        buf_hndl.priv_buffer_handle = NULL;
     }
 }
 
 #if !BYPASS_TX_PRIORITY_Q
 /* Send data to host */
-void send_task(void* pvParameters) {
+void ncp_snd_tsk(void* pvParameters) {
+    interface_buffer_handle_t buf_hndl {};
     uint8_t queue_type = 0;
-    interface_buffer_handle_t buf_handle {};
+    BaseType_t xReturn;
 
     while (true) {
         if (g_datapath == 0) {
@@ -293,18 +296,20 @@ void send_task(void* pvParameters) {
             continue;
         }
 
-        if (xQueueReceive(meta_to_host_queue, &queue_type, portMAX_DELAY)) {
-            if (xQueueReceive(to_host_queue[queue_type], &buf_handle, portMAX_DELAY)) {
-                process_tx_pkt(&buf_handle);
+        xReturn = xQueueReceive(meta_to_host_queue, &queue_type, portMAX_DELAY);
+        if (xReturn == pdPASS) {
+            xReturn = xQueueReceive(to_host_queue[queue_type], &buf_hndl, portMAX_DELAY);
+            if (xReturn == pdPASS) {
+                ncp_proc_tx_pkt(buf_hndl);
             }
         }
     }
 }
 #endif
 
-void parse_protobuf_req(void) {
-    protocomm_pserial_data_ready(pc_pserial, r.data,
-                                 r.len, UNKNOWN_RPC_MSG_ID);
+void ncp_parse_protobuf_req(void) {
+    protocomm_pserial_data_ready(pc_pserial, m_rx_ctx.data,
+                                 m_rx_ctx.len, UNKNOWN_RPC_MSG_ID);
 }
 
 void send_event_to_host(int event_id) {
@@ -321,48 +326,48 @@ void send_event_data_to_host(int event_id, void* data, int size) {
     protocomm_pserial_data_ready(pc_pserial, (uint8_t*)data, size, event_id);
 }
 
-void process_serial_rx_pkt(uint8_t* buf) {
-    struct esp_payload_header* header = NULL;
-    uint16_t payload_len = 0;
-    uint8_t* payload = NULL;
-    int rem_buff_size;
+void ncp_proc_serial_rx_pkt(uint8_t* buf) {
+    struct esp_payload_header* pdu;
+    uint8_t* payload;
+    uint16_t payload_len;
+    int rem_buf_sz;
 
-    header        = (struct esp_payload_header*)buf;
-    payload_len   = le16toh(header->len);
-    payload       = buf + le16toh(header->offset);
-    rem_buff_size = sizeof(r.data) - r.len;
+    pdu         = (struct esp_payload_header*)buf;
+    payload     = (buf + le16toh(pdu->offset));
+    payload_len = le16toh(pdu->len);
+    rem_buf_sz  = sizeof(m_rx_ctx.data) - m_rx_ctx.len;
 
     ESP_HEXLOGV("serial_rx", payload, payload_len);
 
-    while (r.valid) {
-        ESP_LOGI(TAG, "More segment: %u curr seq: %u header seq: %u\n",
-                 header->flags & MORE_FRAGMENT, r.cur_seq_no, header->seq_num);
+    while (m_rx_ctx.valid) {
+        ESP_LOGI(TAG, "More segment: %u curr seq: %u pdu seq: %u\n",
+                 pdu->flags & MORE_FRAGMENT, m_rx_ctx.cur_seq_no, pdu->seq_num);
         vTaskDelay(10);
     }
 
-    if (!r.len) {
+    if (m_rx_ctx.len == 0) {
         /* New Buffer */
-        r.cur_seq_no = le16toh(header->seq_num);
+        m_rx_ctx.cur_seq_no = le16toh(pdu->seq_num);
     }
 
-    if (header->seq_num != r.cur_seq_no) {
+    if (pdu->seq_num != m_rx_ctx.cur_seq_no) {
         /* Sequence number mismatch */
-        r.valid = 1;
-        parse_protobuf_req();
+        m_rx_ctx.valid = 1;
+        ncp_parse_protobuf_req();
         return;
     }
 
-    memcpy((r.data + r.len), payload, min(payload_len, rem_buff_size));
-    r.len += min(payload_len, rem_buff_size);
+    memcpy((m_rx_ctx.data + m_rx_ctx.len), payload, min(payload_len, rem_buf_sz));
+    m_rx_ctx.len += min(payload_len, rem_buf_sz);
 
-    if (!(header->flags & MORE_FRAGMENT)) {
+    if (!(pdu->flags & MORE_FRAGMENT)) {
         /* Received complete buffer */
-        r.valid = 1;
-        parse_protobuf_req();
+        m_rx_ctx.valid = 1;
+        ncp_parse_protobuf_req();
     }
 }
 
-static int host_to_slave_reconfig(uint8_t* evt_buf, uint16_t len) {
+static int ncp_host_to_slave_reconfig(uint8_t* evt_buf, uint16_t len) {
     uint8_t len_left = len;
     uint8_t tag_len;
     uint8_t* pos;
@@ -453,7 +458,7 @@ static int host_to_slave_reconfig(uint8_t* evt_buf, uint16_t len) {
     return ESP_OK;
 }
 
-static void process_priv_pkt(uint8_t* payload, uint16_t payload_len) {
+static void ncp_proc_priv_pkt(uint8_t* payload, uint16_t payload_len) {
     int ret = 0;
     struct esp_priv_event* event;
 
@@ -468,7 +473,7 @@ static void process_priv_pkt(uint8_t* payload, uint16_t payload_len) {
         ESP_LOGI(TAG, "Slave init_config received from host");
         ESP_HEXLOGD("init_config", event->event_data, event->event_len);
 
-        ret = host_to_slave_reconfig(event->event_data, event->event_len);
+        ret = ncp_host_to_slave_reconfig(event->event_data, event->event_len);
         if (ret) {
             ESP_LOGE(TAG, "failed to init event\n\r");
         }
@@ -478,20 +483,20 @@ static void process_priv_pkt(uint8_t* payload, uint16_t payload_len) {
     }
 }
 
-void process_rx_pkt(interface_buffer_handle_t* buf_handle) {
-    struct esp_payload_header* header = NULL;
+void ncp_proc_rx_pkt(interface_buffer_handle_t& buf_hndl) {
+    struct esp_payload_header* pdu = NULL;
     uint8_t* payload = NULL;
     uint16_t payload_len = 0;
     int ret = 0;
     int retry_wifi_tx = MAX_WIFI_STA_TX_RETRY;
 
-    header      = (struct esp_payload_header*)buf_handle->payload;
-    payload     = buf_handle->payload + le16toh(header->offset);
-    payload_len = le16toh(header->len);
+    pdu     = (struct esp_payload_header*)buf_hndl.payload;
+    payload = buf_hndl.payload + le16toh(pdu->offset);
+    payload_len = le16toh(pdu->len);
 
-    ESP_HEXLOGD("rx_new", buf_handle->payload, min(32, buf_handle->payload_len));
+    ESP_HEXLOGD("rx_new", buf_hndl.payload, min(32, buf_hndl.payload_len));
 
-    if ((buf_handle->if_type == ESP_STA_IF) && (station_connected == true)) {
+    if ((buf_hndl.if_type == ESP_STA_IF) && (station_connected == true)) {
         /* Forward data to wlan driver */
         do {
             ret = esp_wifi_internal_tx(WIFI_IF_STA, payload, payload_len);
@@ -518,43 +523,43 @@ void process_rx_pkt(interface_buffer_handle_t* buf_handle) {
             #endif
         }
     }
-    else if (buf_handle->if_type == ESP_AP_IF && softap_started) {
+    else if (buf_hndl.if_type == ESP_AP_IF && softap_started) {
         /* Forward data to wlan driver */
         esp_wifi_internal_tx(WIFI_IF_AP, payload, payload_len);
         ESP_HEXLOGV("AP_Put", payload, payload_len);
     }
-    else if (buf_handle->if_type == ESP_SERIAL_IF) {
+    else if (buf_hndl.if_type == ESP_SERIAL_IF) {
         #if ESP_PKT_STATS
         pkt_stats.serial_rx++;
         #endif
-        process_serial_rx_pkt(buf_handle->payload);
+        ncp_proc_serial_rx_pkt(buf_hndl.payload);
     }
-    else if (buf_handle->if_type == ESP_PRIV_IF) {
-        process_priv_pkt(payload, payload_len);
+    else if (buf_hndl.if_type == ESP_PRIV_IF) {
+        ncp_proc_priv_pkt(payload, payload_len);
     }
 
     #if defined(CONFIG_BT_ENABLED) && BLUETOOTH_HCI
-    else if (buf_handle->if_type == ESP_HCI_IF) {
+    else if (buf_hndl.if_type == ESP_HCI_IF) {
         process_hci_rx_pkt(payload, payload_len);
     }
     #endif
 
     #if TEST_RAW_TP
-    else if (buf_handle->if_type == ESP_TEST_IF) {
+    else if (buf_hndl.if_type == ESP_TEST_IF) {
         debug_update_raw_tp_rx_count(payload_len);
     }
     #endif
 
     /* Free buffer handle */
-    if (buf_handle->free_buf_handle && buf_handle->priv_buffer_handle) {
-        buf_handle->free_buf_handle(buf_handle->priv_buffer_handle);
-        buf_handle->priv_buffer_handle = NULL;
+    if (buf_hndl.free_buf_handle && buf_hndl.priv_buffer_handle) {
+        buf_hndl.free_buf_handle(buf_hndl.priv_buffer_handle);
+        buf_hndl.priv_buffer_handle = NULL;
     }
 }
 
 /* Get data from host */
-void recv_task(void* pvParameters) {
-    interface_buffer_handle_t buf_handle {};
+void ncp_rcv_tsk(void* pvParameters) {
+    interface_buffer_handle_t buf_hndl {};
 
     while (true) {
         if (g_datapath == 0) {
@@ -565,24 +570,24 @@ void recv_task(void* pvParameters) {
 
         /* receive data from transport layer */
         if (if_context && if_context->if_ops && if_context->if_ops->read) {
-            int len = if_context->if_ops->read(if_handle, &buf_handle);
+            int len = if_context->if_ops->read(if_handle, &buf_hndl);
             if (len <= 0) {
                 usleep(10 * 1000);
                 continue;
             }
         }
 
-        process_rx_pkt(&buf_handle);
+        ncp_proc_rx_pkt(buf_hndl);
     }
 }
 
 static ssize_t serial_read_data(uint8_t* data, ssize_t len) {
-    len = min(len, r.len);
-    if (r.valid) {
-        memcpy(data, r.data, len);
-        r.valid = 0;
-        r.len   = 0;
-        r.cur_seq_no = 0;
+    len = min(len, m_rx_ctx.len);
+    if (m_rx_ctx.valid) {
+        memcpy(data, m_rx_ctx.data, len);
+        m_rx_ctx.valid = 0;
+        m_rx_ctx.len   = 0;
+        m_rx_ctx.cur_seq_no = 0;
     }
     else {
         ESP_LOGI(TAG, "No data to be read, len %d", len);
@@ -591,12 +596,12 @@ static ssize_t serial_read_data(uint8_t* data, ssize_t len) {
     return len;
 }
 
-int send_to_host_queue(interface_buffer_handle_t* buf_handle, uint8_t queue_type) {
+int send_to_host_queue(interface_buffer_handle_t* buf_hndl, uint8_t queue_type) {
     #if BYPASS_TX_PRIORITY_Q
-    process_tx_pkt(buf_handle);
+    ncp_proc_tx_pkt(buf_hndl);
     return ESP_OK;
     #else
-    int ret = xQueueSend(to_host_queue[queue_type], buf_handle, portMAX_DELAY);
+    int ret = xQueueSend(to_host_queue[queue_type], buf_hndl, portMAX_DELAY);
     if (ret != pdTRUE) {
         ESP_LOGE(TAG, "Failed to send buffer into queue[%u]\n", queue_type);
         return ESP_FAIL;
@@ -625,29 +630,29 @@ static esp_err_t serial_write_data(uint8_t* data, ssize_t len) {
     static uint16_t seq_num  = 0;
 
     do {
-        interface_buffer_handle_t buf_handle {};
+        interface_buffer_handle_t buf_hndl {};
 
         seq_num++;
 
-        buf_handle.if_type = ESP_SERIAL_IF;
-        buf_handle.if_num  = 0;
-        buf_handle.seq_num = seq_num;
+        buf_hndl.if_type = ESP_SERIAL_IF;
+        buf_hndl.if_num  = 0;
+        buf_hndl.seq_num = seq_num;
 
         if (left_len > ETH_DATA_LEN) {
             frag_len = ETH_DATA_LEN;
-            buf_handle.flag = MORE_FRAGMENT;
+            buf_hndl.flag = MORE_FRAGMENT;
         }
         else {
             frag_len = left_len;
-            buf_handle.flag = 0;
-            buf_handle.priv_buffer_handle = data;
-            buf_handle.free_buf_handle = free;
+            buf_hndl.flag = 0;
+            buf_hndl.priv_buffer_handle = data;
+            buf_hndl.free_buf_handle = free;
         }
 
-        buf_handle.payload = pos;
-        buf_handle.payload_len = frag_len;
+        buf_hndl.payload = pos;
+        buf_hndl.payload_len = frag_len;
 
-        if (send_to_host_queue(&buf_handle, PRIO_Q_SERIAL)) {
+        if (send_to_host_queue(&buf_hndl, PRIO_Q_SERIAL)) {
             if (data) {
                 free(data);
                 data = NULL;
@@ -864,6 +869,7 @@ void app_main(void) {
     uint8_t   capa       = 0;
     uint32_t  ext_capa   = 0;
     uint8_t   prio_q_idx = 0;
+    BaseType_t xReturn;
 
     print_firmware_version();
     register_reset_pin(gpio_num_t(CONFIG_ESP_GPIO_SLAVE_RESET));
@@ -923,9 +929,10 @@ void app_main(void) {
         return;
     }
 
-    assert(xTaskCreate(recv_task, "recv_task",
-                       CONFIG_ESP_DEFAULT_TASK_STACK_SIZE, NULL,
-                       CONFIG_ESP_DEFAULT_TASK_PRIO, NULL) == pdTRUE);
+    xReturn = xTaskCreate(ncp_rcv_tsk, "ncp_rcv_tsk",
+                          CONFIG_ESP_DEFAULT_TASK_STACK_SIZE, NULL,
+                          CONFIG_ESP_DEFAULT_TASK_PRIO, NULL);
+    assert(xReturn == pdTRUE);
 
     #if !BYPASS_TX_PRIORITY_Q
     meta_to_host_queue = xQueueCreate(TO_HOST_QUEUE_SIZE * 3, sizeof(uint8_t));
@@ -936,9 +943,10 @@ void app_main(void) {
         assert(to_host_queue[prio_q_idx]);
     }
 
-    assert(xTaskCreate(send_task, "send_task",
-           CONFIG_ESP_DEFAULT_TASK_STACK_SIZE, NULL,
-           CONFIG_ESP_DEFAULT_TASK_PRIO, NULL) == pdTRUE);
+    xReturn = xTaskCreate(ncp_snd_tsk, "ncp_snd_tsk",
+                          CONFIG_ESP_DEFAULT_TASK_STACK_SIZE, NULL,
+                          CONFIG_ESP_DEFAULT_TASK_PRIO, NULL);
+    assert(xReturn == pdTRUE);
     #endif
 
     create_debugging_tasks();
