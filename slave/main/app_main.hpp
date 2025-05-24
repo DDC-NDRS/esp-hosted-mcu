@@ -14,8 +14,8 @@
 // limitations under the License.
 //
 
-#ifndef __NETWORK_ADAPTER_PRIV__H
-#define __NETWORK_ADAPTER_PRIV__H
+#ifndef __APP_MAIN__H
+#define __APP_MAIN__H
 
 #include "esp_hosted_transport.h"
 #include "esp_hosted_header.h"
@@ -25,4 +25,17 @@
 typedef struct {
     interface_context_t* context;
 } adapter;
+
+#ifdef __cplusplus
+extern "C" {
 #endif
+
+void app_main(void);
+esp_err_t wlan_ap_rx_callback(void* buffer, uint16_t len, void* eb);
+esp_err_t wlan_sta_rx_callback(void* buffer, uint16_t len, void* eb);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __APP_MAIN__H */

@@ -144,7 +144,7 @@ void debug_update_raw_tp_rx_count(uint16_t len) {
 // static buffer to hold tx data during test
 DMA_ATTR static uint8_t tx_buf[TEST_RAW_TP__BUF_SIZE];
 
-extern volatile uint8_t datapath;
+extern volatile uint8_t g_datapath;
 
 static void raw_tp_tx_task(void* pvParameters) {
     int                       ret;
@@ -164,7 +164,7 @@ static void raw_tp_tx_task(void* pvParameters) {
     }
 
     while (true) {
-        if (!datapath) {
+        if (g_datapath == 0) {
             sleep(1);
             continue;
         }

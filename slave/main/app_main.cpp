@@ -20,7 +20,7 @@
 #include "esp_private/wifi.h"
 #include "interface.h"
 #include "esp_wpa.h"
-#include "app_main.h"
+#include "app_main.hpp"
 #include "driver/gpio.h"
 
 #include "freertos/task.h"
@@ -64,7 +64,7 @@ static char const* TAG = "fg_mcu_slave";
 #define ETH_DATA_LEN            1500
 #define MAX_WIFI_STA_TX_RETRY   6
 
-volatile uint8_t datapath = 0;
+volatile uint8_t g_datapath = 0;
 volatile uint8_t station_connected = 0;
 volatile uint8_t softap_started = 0;
 
@@ -180,9 +180,9 @@ static uint32_t get_capabilities_ext(void) {
 }
 
 esp_err_t wlan_ap_rx_callback(void* buffer, uint16_t len, void* eb) {
-    interface_buffer_handle_t buf_handle = {0};
+    interface_buffer_handle_t buf_handle {};
 
-    if (!buffer || !eb || !datapath) {
+    if (!buffer || !eb || (g_datapath == 0)) {
         if (eb) {
             esp_wifi_internal_free_rx_buffer(eb);
         }
@@ -207,7 +207,7 @@ esp_err_t wlan_ap_rx_callback(void* buffer, uint16_t len, void* eb) {
     buf_handle.if_type         = ESP_AP_IF;
     buf_handle.if_num          = 0;
     buf_handle.payload_len     = len;
-    buf_handle.payload         = buffer;
+    buf_handle.payload         = (uint8_t*)buffer;
     buf_handle.wlan_buf_handle = eb;
     buf_handle.free_buf_handle = esp_wifi_internal_free_rx_buffer;
 
@@ -223,9 +223,9 @@ DONE:
 }
 
 esp_err_t wlan_sta_rx_callback(void* buffer, uint16_t len, void* eb) {
-    interface_buffer_handle_t buf_handle = {0};
+    interface_buffer_handle_t buf_handle {};
 
-    if (!buffer || !eb || !datapath) {
+    if (!buffer || !eb || (g_datapath == 0)) {
         if (eb) {
             esp_wifi_internal_free_rx_buffer(eb);
         }
@@ -236,7 +236,7 @@ esp_err_t wlan_sta_rx_callback(void* buffer, uint16_t len, void* eb) {
     buf_handle.if_type         = ESP_STA_IF;
     buf_handle.if_num          = 0;
     buf_handle.payload_len     = len;
-    buf_handle.payload         = buffer;
+    buf_handle.payload         = (uint8_t*)buffer;
     buf_handle.wlan_buf_handle = eb;
     buf_handle.free_buf_handle = esp_wifi_internal_free_rx_buffer;
 
@@ -258,7 +258,7 @@ DONE:
 
 void process_tx_pkt(interface_buffer_handle_t* buf_handle) {
     /* Check if data path is not yet open */
-    if (!datapath) {
+    if (g_datapath == 0) {
         /* Post processing */
         if (buf_handle->free_buf_handle && buf_handle->priv_buffer_handle) {
             buf_handle->free_buf_handle(buf_handle->priv_buffer_handle);
@@ -285,11 +285,10 @@ void process_tx_pkt(interface_buffer_handle_t* buf_handle) {
 /* Send data to host */
 void send_task(void* pvParameters) {
     uint8_t queue_type = 0;
-    interface_buffer_handle_t buf_handle = {0};
+    interface_buffer_handle_t buf_handle {};
 
     while (true) {
-
-        if (!datapath) {
+        if (g_datapath == 0) {
             usleep(100 * 1000);
             continue;
         }
@@ -319,7 +318,7 @@ void send_event_data_to_host(int event_id, void* data, int size) {
     #if ESP_PKT_STATS
     pkt_stats.serial_tx_evt++;
     #endif
-    protocomm_pserial_data_ready(pc_pserial, data, size, event_id);
+    protocomm_pserial_data_ready(pc_pserial, (uint8_t*)data, size, event_id);
 }
 
 void process_serial_rx_pkt(uint8_t* buf) {
@@ -495,7 +494,7 @@ void process_rx_pkt(interface_buffer_handle_t* buf_handle) {
     if ((buf_handle->if_type == ESP_STA_IF) && (station_connected == true)) {
         /* Forward data to wlan driver */
         do {
-            ret = esp_wifi_internal_tx(ESP_IF_WIFI_STA, payload, payload_len);
+            ret = esp_wifi_internal_tx(WIFI_IF_STA, payload, payload_len);
 
             /* Delay only if throttling is enabled */
             if ((ret != 0) &&
@@ -521,7 +520,7 @@ void process_rx_pkt(interface_buffer_handle_t* buf_handle) {
     }
     else if (buf_handle->if_type == ESP_AP_IF && softap_started) {
         /* Forward data to wlan driver */
-        esp_wifi_internal_tx(ESP_IF_WIFI_AP, payload, payload_len);
+        esp_wifi_internal_tx(WIFI_IF_AP, payload, payload_len);
         ESP_HEXLOGV("AP_Put", payload, payload_len);
     }
     else if (buf_handle->if_type == ESP_SERIAL_IF) {
@@ -555,10 +554,10 @@ void process_rx_pkt(interface_buffer_handle_t* buf_handle) {
 
 /* Get data from host */
 void recv_task(void* pvParameters) {
-    interface_buffer_handle_t buf_handle = {0};
+    interface_buffer_handle_t buf_handle {};
 
     while (true) {
-        if (!datapath) {
+        if (g_datapath == 0) {
             /* Datapath is not enabled by host yet*/
             usleep(100 * 1000);
             continue;
@@ -626,7 +625,7 @@ static esp_err_t serial_write_data(uint8_t* data, ssize_t len) {
     static uint16_t seq_num  = 0;
 
     do {
-        interface_buffer_handle_t buf_handle = {0};
+        interface_buffer_handle_t buf_handle {};
 
         seq_num++;
 
@@ -670,7 +669,7 @@ int event_handler(uint8_t val) {
         case ESP_OPEN_DATA_PATH :
             if (if_handle) {
                 if_handle->state = ACTIVE;
-                datapath = 1;
+                g_datapath = 1;
                 ESP_EARLY_LOGI(TAG, "Start Data Path");
             }
             else {
@@ -679,7 +678,7 @@ int event_handler(uint8_t val) {
             break;
 
         case ESP_CLOSE_DATA_PATH :
-            datapath = 0;
+            g_datapath = 0;
             if (if_handle) {
                 ESP_EARLY_LOGI(TAG, "Stop Data Path");
                 if_handle->state = DEACTIVE;
@@ -813,7 +812,6 @@ void task_runtime_stats_task(void* pvParameters) {
 #endif
 
 static void IRAM_ATTR gpio_resetpin_isr_handler(void* arg) {
-
     ESP_EARLY_LOGI(TAG, "*********");
     if (CONFIG_ESP_GPIO_SLAVE_RESET == -1) {
         ESP_EARLY_LOGI(TAG, "%s: using EN pin for slave reset", __func__);
@@ -821,13 +819,15 @@ static void IRAM_ATTR gpio_resetpin_isr_handler(void* arg) {
     }
 
     static uint32_t lasthandshaketime_us;
-    uint32_t        currtime_us = esp_timer_get_time();
+    uint32_t cur_time_us = esp_timer_get_time();
+    int ret;
 
-    if (gpio_get_level(CONFIG_ESP_GPIO_SLAVE_RESET) == 0) {
-        lasthandshaketime_us = currtime_us;
+    ret = gpio_get_level(gpio_num_t(CONFIG_ESP_GPIO_SLAVE_RESET));
+    if (ret == 0) {
+        lasthandshaketime_us = cur_time_us;
     }
     else {
-        uint32_t diff = currtime_us - lasthandshaketime_us;
+        uint32_t diff = (cur_time_us - lasthandshaketime_us);
         ESP_EARLY_LOGI(TAG, "%s Diff: %u", __func__, diff);
         if (diff < 500) {
             return; // ignore everything < half ms after an earlier irq
@@ -839,16 +839,18 @@ static void IRAM_ATTR gpio_resetpin_isr_handler(void* arg) {
     }
 }
 
-static void register_reset_pin(uint32_t gpio_num) {
+static void register_reset_pin(gpio_num_t gpio_num) {
     if (gpio_num != -1) {
         ESP_LOGI(TAG, "Using GPIO [%lu] as slave reset pin", gpio_num);
         gpio_reset_pin(gpio_num);
 
         gpio_config_t slave_reset_pin_conf = {
-            .intr_type = GPIO_INTR_DISABLE,
+            .pin_bit_mask = (1ULL << gpio_num),
             .mode = GPIO_MODE_INPUT,
-            .pull_up_en = 1,
-            .pin_bit_mask = (1 << gpio_num)};
+            .pull_up_en = GPIO_PULLUP_ENABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_DISABLE,
+        };
 
         gpio_config(&slave_reset_pin_conf);
         gpio_set_intr_type(gpio_num, GPIO_INTR_ANYEDGE);
@@ -864,7 +866,7 @@ void app_main(void) {
     uint8_t   prio_q_idx = 0;
 
     print_firmware_version();
-    register_reset_pin(CONFIG_ESP_GPIO_SLAVE_RESET);
+    register_reset_pin(gpio_num_t(CONFIG_ESP_GPIO_SLAVE_RESET));
 
     capa     = get_capabilities();
     ext_capa = get_capabilities_ext();
@@ -906,7 +908,7 @@ void app_main(void) {
     if_context = interface_insert_driver(event_handler);
 
     #if CONFIG_ESP_SPI_HOST_INTERFACE
-    datapath = 1;
+    g_datapath = 1;
     #endif
 
     if (!if_context || !if_context->if_ops) {
@@ -943,7 +945,7 @@ void app_main(void) {
 
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-    while (!datapath) {
+    while (g_datapath == 0) {
         vTaskDelay(10);
     }
 

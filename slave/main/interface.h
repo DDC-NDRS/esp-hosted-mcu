@@ -126,10 +126,18 @@ typedef struct {
     uint8_t current_throttling;
 } slave_state_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 interface_context_t* interface_insert_driver(int (*callback)(uint8_t val));
-int                  interface_remove_driver();
-void                 generate_startup_event(uint8_t cap, uint32_t ext_cap);
-int                  send_to_host_queue(interface_buffer_handle_t* buf_handle, uint8_t queue_type);
+int interface_remove_driver(void);
+void generate_startup_event(uint8_t cap, uint32_t ext_cap);
+int send_to_host_queue(interface_buffer_handle_t* buf_handle, uint8_t queue_type);
+
+#ifdef __cplusplus
+}
+#endif
 
 #ifndef min
 #define min(a, b) ((a) < (b) ? (a) : (b))

@@ -119,7 +119,16 @@ struct pkt_stats_t {
 extern struct pkt_stats_t pkt_stats;
 #endif
 
-void    process_test_capabilities(uint8_t capabilities);
-void    create_debugging_tasks(void);
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void process_test_capabilities(uint8_t capabilities);
+void create_debugging_tasks(void);
 uint8_t debug_get_raw_tp_conf(void);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif /*__STATS__H__*/

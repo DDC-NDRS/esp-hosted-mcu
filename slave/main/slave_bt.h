@@ -155,13 +155,31 @@
 #endif
 
 #elif BLUETOOTH_HCI
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void process_hci_rx_pkt(uint8_t* payload, uint16_t payload_len);
+
+#ifdef __cplusplus
+}
+#endif
 #endif
 
 #endif /* CONFIG_BT_ENABLED */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void      deinitialize_bluetooth(void);
 esp_err_t initialise_bluetooth(void);
 uint8_t   get_bluetooth_capabilities(void);
 uint32_t  get_bluetooth_ext_capabilities(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __SLAVE_BT_H__ */
