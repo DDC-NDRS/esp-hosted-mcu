@@ -584,7 +584,7 @@ typedef enum _RpcId {
   RPC_ID__Req_WifiScanGetApRecord = 351,
   /*
    * Add new control path command response before Req_Max
-   * and update Req_Max 
+   * and update Req_Max
    */
   /*
    *0x160

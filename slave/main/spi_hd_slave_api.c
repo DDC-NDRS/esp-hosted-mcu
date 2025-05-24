@@ -143,10 +143,10 @@ static bool cb_rx_ready(void* arg, spi_slave_hd_event_t* event, BaseType_t* awok
 static bool cb_cmd9_recv(void* arg, spi_slave_hd_event_t* event, BaseType_t* awoken);
 
 static interface_handle_t* esp_spi_hd_init(void);
-static int                 esp_spi_hd_read(interface_handle_t* if_handle, interface_buffer_handle_t* buf_handle);
-static int32_t             esp_spi_hd_write(interface_handle_t* handle, interface_buffer_handle_t* buf_handle);
-static void                esp_spi_hd_deinit(interface_handle_t* handle);
-static esp_err_t           esp_spi_hd_reset(interface_handle_t* handle);
+static int esp_spi_hd_read(interface_handle_t* if_handle, interface_buffer_handle_t* buf_handle);
+static int32_t esp_spi_hd_write(interface_handle_t* handle, interface_buffer_handle_t* buf_handle);
+static void esp_spi_hd_deinit(interface_handle_t* handle);
+static esp_err_t esp_spi_hd_reset(interface_handle_t* handle);
 
 if_ops_t if_ops = {
     .init   = esp_spi_hd_init,
@@ -279,10 +279,10 @@ static void start_rx_data_throttling_if_needed(void) {
     uint32_t queue_load;
     uint8_t  load_percent;
 
-    if (slv_cfg_g.throttle_high_threshold > 0) {
+    if (g_slv_cfg.throttle_high_threshold > 0) {
 
         /* Already throttling, nothing to be done */
-        if (slv_state_g.current_throttling) {
+        if (g_slv_state.current_throttling) {
             return;
         }
 
@@ -292,8 +292,8 @@ static void start_rx_data_throttling_if_needed(void) {
 #endif
 
         load_percent = (queue_load * 100 / SPI_HD_QUEUE_SIZE);
-        if (load_percent > slv_cfg_g.throttle_high_threshold) {
-            slv_state_g.current_throttling = 1;
+        if (load_percent > g_slv_cfg.throttle_high_threshold) {
+            g_slv_state.current_throttling = 1;
             wifi_flow_ctrl                 = 1;
             TRIGGER_FLOW_CTRL();
         }
@@ -304,7 +304,7 @@ static void stop_rx_data_throttling_if_needed(void) {
     uint32_t queue_load;
     uint8_t  load_percent;
 
-    if (slv_state_g.current_throttling) {
+    if (g_slv_state.current_throttling) {
 
         queue_load = uxQueueMessagesWaiting(spi_hd_rx_queue[PRIO_Q_OTHERS]);
 #if ESP_PKT_STATS
@@ -312,8 +312,8 @@ static void stop_rx_data_throttling_if_needed(void) {
 #endif
 
         load_percent = (queue_load * 100 / SPI_HD_QUEUE_SIZE);
-        if (load_percent < slv_cfg_g.throttle_low_threshold) {
-            slv_state_g.current_throttling = 0;
+        if (load_percent < g_slv_cfg.throttle_low_threshold) {
+            g_slv_state.current_throttling = 0;
             wifi_flow_ctrl                 = 0;
             TRIGGER_FLOW_CTRL();
         }
@@ -392,13 +392,14 @@ static void spi_hd_read_done(void* handle) {
 }
 
 static void spi_hd_rx_task(void* pvParameters) {
-    int                  i;
-    uint8_t*             buf       = NULL;
-    esp_err_t            ret       = ESP_OK;
+    int i;
+    uint8_t* buf = NULL;
+    esp_err_t ret = ESP_OK;
     spi_slave_hd_data_t* rx_trans  = NULL;
     spi_slave_hd_data_t* ret_trans = NULL;
-    esp_err_t            res;
-    uint16_t             len = 0, offset = 0;
+    esp_err_t res;
+    uint16_t len = 0;
+    uint16_t offset = 0;
 
     struct esp_payload_header* header     = NULL;
     interface_buffer_handle_t  buf_handle = {0};
@@ -408,11 +409,11 @@ static void spi_hd_rx_task(void* pvParameters) {
 
     // prepare buffers and preload rx transactions
     for (i = 0; i < SPI_HD_QUEUE_SIZE; i++) {
-        buf            = spi_hd_buffer_rx_alloc(MEMSET_REQUIRED);
-        rx_trans       = spi_hd_trans_rx_alloc(MEMSET_REQUIRED);
+        buf = spi_hd_buffer_rx_alloc(MEMSET_REQUIRED);
+        rx_trans = spi_hd_trans_rx_alloc(MEMSET_REQUIRED);
         rx_trans->data = buf;
         rx_trans->len  = SPI_HD_BUFFER_SIZE;
-        res            = spi_slave_hd_queue_trans(SPI_HOST, SPI_SLAVE_CHAN_RX, rx_trans, portMAX_DELAY);
+        res = spi_slave_hd_queue_trans(SPI_HOST, SPI_SLAVE_CHAN_RX, rx_trans, portMAX_DELAY);
         if (res) {
             ESP_LOGE(TAG, "Failed to queue Rx transaction %" PRIu16, i);
             spi_hd_buffer_rx_free(buf);

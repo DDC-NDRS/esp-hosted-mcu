@@ -43,14 +43,14 @@ void hci_drv_show_configuration(void) {
  * HCI_H4_xxx is the first byte of the received data
  */
 int hci_rx_handler(interface_buffer_handle_t* buf_handle) {
-    uint8_t* data           = buf_handle->payload;
+    uint8_t* data = buf_handle->payload;
     uint32_t len_total_read = buf_handle->payload_len;
 
     int rc;
 
     if (data[0] == HCI_H4_EVT) {
         uint8_t* evbuf;
-        int      totlen;
+        int totlen;
 
         totlen = BLE_HCI_EVENT_HDR_LEN + data[2];
         if (totlen > UINT8_MAX + BLE_HCI_EVENT_HDR_LEN) {
@@ -114,6 +114,7 @@ int hci_rx_handler(interface_buffer_handle_t* buf_handle) {
 
         ble_transport_to_hs_acl(m);
     }
+
     return ESP_OK;
 }
 
@@ -204,7 +205,7 @@ exit:
 static esp_bluedroid_hci_driver_callbacks_t s_callback = {0};
 
 int hci_rx_handler(interface_buffer_handle_t* buf_handle) {
-    uint8_t* data           = buf_handle->payload;
+    uint8_t* data = buf_handle->payload;
     uint32_t len_total_read = buf_handle->payload_len;
 
     if (s_callback.notify_host_recv) {

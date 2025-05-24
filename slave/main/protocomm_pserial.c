@@ -210,8 +210,8 @@ static esp_err_t rpc_evt_handler(protocomm_t* pc, uint8_t* in, size_t in_len, in
 
 esp_err_t protocomm_pserial_data_ready(protocomm_t* pc, uint8_t* in, int len, int msg_id) {
     struct pserial_config* pserial_cfg = NULL;
-    serial_arg_t           arg         = {0};
-    uint8_t*               buf         = NULL;
+    serial_arg_t arg = {0};
+    uint8_t* buf = NULL;
 
     pserial_cfg = (struct pserial_config*)pc->priv;
     if (!pserial_cfg) {

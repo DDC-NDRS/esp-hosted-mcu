@@ -65,13 +65,13 @@ static char const* TAG = "fg_mcu_slave";
 #define MAX_WIFI_STA_TX_RETRY   6
 
 volatile uint8_t g_datapath = 0;
-volatile uint8_t station_connected = 0;
-volatile uint8_t softap_started = 0;
+volatile uint8_t g_station_connected = 0;
+volatile uint8_t g_softap_started = 0;
 
 static interface_context_t* m_if_ctx;
-static interface_handle_t* m_if_hndl;
-slave_config_t slv_cfg_g;
-slave_state_t slv_state_g;
+static interface_handle_t*  m_if_hndl;
+slave_config_t g_slv_cfg;
+slave_state_t  g_slv_state;
 
 #if (BYPASS_TX_PRIORITY_Q == 0)
 static QueueHandle_t m_meta_to_host_que = nullptr;
@@ -88,8 +88,7 @@ struct rx_ctx_t {
 };
 
 static struct rx_ctx_t m_rx_ctx;
-
-uint8_t ap_mac[BSSID_BYTES_SIZE] = {0};
+[[maybe_unused]] static uint8_t m_ap_mac[BSSID_BYTES_SIZE] {};
 
 #if CONFIG_ESP_UART_HOST_INTERFACE && BLUETOOTH_UART
 #error "Hosted UART Interface cannot be used with Bluetooth HCI over UART"
@@ -143,7 +142,7 @@ static uint8_t ncp_get_capabilities(void) {
     cap |= get_bluetooth_capabilities();
     ESP_LOGI(TAG, "capabilities: 0x%x", cap);
 
-    return cap;
+    return (cap);
 }
 
 static uint32_t ncp_get_capabilities_ext(void) {
@@ -178,17 +177,18 @@ static uint32_t ncp_get_capabilities_ext(void) {
 
     ESP_LOGI(TAG, "extended capabilities: 0x%" PRIx32, ext_cap);
 
-    return ext_cap;
+    return (ext_cap);
 }
 
 esp_err_t wlan_ap_rx_callback(void* buffer, uint16_t len, void* eb) {
     interface_buffer_handle_t buf_hndl {};
+    int ret;
 
-    if (!buffer || !eb || (g_datapath == 0)) {
-        if (eb) {
+    if ((buffer == nullptr) || (eb == nullptr) || (g_datapath == 0)) {
+        if (eb != nullptr) {
             esp_wifi_internal_free_rx_buffer(eb);
         }
-        return ESP_OK;
+        return (ESP_OK);
     }
     ESP_HEXLOGV("AP_Get", buffer, len);
 
@@ -197,9 +197,9 @@ esp_err_t wlan_ap_rx_callback(void* buffer, uint16_t len, void* eb) {
      * traffic to be reduced from stations to softap
      */
     uint8_t * ap_buf = buffer;
-    /* Check destination address against self address */
-    if (memcmp(ap_buf, ap_mac, BSSID_BYTES_SIZE)) {
-        /* Check for multicast or broadcast address */
+    // Check destination address against self address
+    if (memcmp(ap_buf, m_ap_mac, BSSID_BYTES_SIZE)) {
+        // Check for multicast or broadcast address
         if (!(ap_buf[0] & 1)) {
             goto DONE;
         }
@@ -213,25 +213,26 @@ esp_err_t wlan_ap_rx_callback(void* buffer, uint16_t len, void* eb) {
     buf_hndl.wlan_buf_handle = eb;
     buf_hndl.free_buf_handle = esp_wifi_internal_free_rx_buffer;
 
-    if (send_to_host_queue(&buf_hndl, PRIO_Q_OTHERS)) {
+    ret = send_to_host_queue(&buf_hndl, PRIO_Q_OTHERS);
+    if (ret != 0) {
         goto DONE;
     }
 
-    return ESP_OK;
+    return (ESP_OK);
 
 DONE:
     esp_wifi_internal_free_rx_buffer(eb);
-    return ESP_OK;
+    return (ESP_OK);
 }
 
 esp_err_t wlan_sta_rx_callback(void* buffer, uint16_t len, void* eb) {
     interface_buffer_handle_t buf_hndl {};
 
-    if (!buffer || !eb || (g_datapath == 0)) {
-        if (eb) {
+    if ((buffer == nullptr) || (eb == nullptr) || (g_datapath == 0)) {
+        if (eb != nullptr) {
             esp_wifi_internal_free_rx_buffer(eb);
         }
-        return ESP_OK;
+        return (ESP_OK);
     }
     ESP_HEXLOGV("STA_Get", buffer, len);
 
@@ -250,18 +251,18 @@ esp_err_t wlan_sta_rx_callback(void* buffer, uint16_t len, void* eb) {
         goto DONE;
     }
 
-    return ESP_OK;
+    return (ESP_OK);
 
 DONE:
     esp_wifi_internal_free_rx_buffer(eb);
 
-    return ESP_OK;
+    return (ESP_OK);
 }
 
 void ncp_proc_tx_pkt(interface_buffer_handle_t& buf_hndl) {
-    /* Check if data path is not yet open */
+    // Check if data path is not yet open
     if (g_datapath == 0) {
-        /* Post processing */
+        // Post processing
         if ((buf_hndl.free_buf_handle != nullptr) &&
             (buf_hndl.priv_buffer_handle != nullptr)) {
             buf_hndl.free_buf_handle(buf_hndl.priv_buffer_handle);
@@ -276,10 +277,11 @@ void ncp_proc_tx_pkt(interface_buffer_handle_t& buf_hndl) {
     if ((m_if_ctx != nullptr) &&
         (m_if_ctx->if_ops != nullptr) &&
         (m_if_ctx->if_ops->write != nullptr)) {
-        m_if_ctx->if_ops->write(m_if_hndl, &buf_hndl);
+        // @see sdio_write(), esp_spi_hd_write(), h_uart_write()
+        m_if_ctx->if_ops->write(m_if_hndl, &buf_hndl);          // NCP_BT_TX_HCI_IF_SEQ04
     }
 
-    /* Post processing */
+    // Post processing
     if ((buf_hndl.free_buf_handle != nullptr) &&
         (buf_hndl.priv_buffer_handle != nullptr)) {
         buf_hndl.free_buf_handle(buf_hndl.priv_buffer_handle);
@@ -288,24 +290,29 @@ void ncp_proc_tx_pkt(interface_buffer_handle_t& buf_hndl) {
 }
 
 #if (BYPASS_TX_PRIORITY_Q == 0)
-/* Send data to host */
+/// @brief Task responsible for sending packets to the host
+/// This task continuously processes packets from a queue and sends them to the host.
+/// It checks the data path status and waits for queue messages before calling ncp_proc_tx_pkt().
+/// If the data path is not active, the task sleeps briefly and continues.
+/// @param[in] pvParameters FreeRTOS task parameter (unused in this implementation)
 void ncp_snd_tsk(void* pvParameters) {
     interface_buffer_handle_t buf_hndl {};
     uint8_t queue_type;
     BaseType_t xReturn;
 
     while (true) {
-        if (g_datapath == 0) {
-            usleep(100 * 1000);
-            continue;
-        }
-
-        xReturn = xQueueReceive(m_meta_to_host_que, &queue_type, portMAX_DELAY);
-        if (xReturn == pdPASS) {
-            xReturn = xQueueReceive(m_to_host_que[queue_type], &buf_hndl, portMAX_DELAY);
+        if (g_datapath != 0) {
+            // NCP_BT_TX_HCI_IF_SEQ02
+            xReturn = xQueueReceive(m_meta_to_host_que, &queue_type, portMAX_DELAY);
             if (xReturn == pdPASS) {
-                ncp_proc_tx_pkt(buf_hndl);
+                xReturn = xQueueReceive(m_to_host_que[queue_type], &buf_hndl, portMAX_DELAY);
+                if (xReturn == pdPASS) {
+                    ncp_proc_tx_pkt(buf_hndl);                  // NCP_BT_TX_HCI_IF_SEQ03
+                }
             }
+        }
+        else {
+            usleep(100 * 1000);
         }
     }
 }
@@ -336,8 +343,8 @@ void ncp_proc_serial_rx_pkt(uint8_t* buf) {
     uint16_t payload_len;
     int rem_buf_sz;
 
-    pdu         = (struct esp_payload_header*)buf;
-    payload     = (buf + le16toh(pdu->offset));
+    pdu = (struct esp_payload_header*)buf;
+    payload = (buf + le16toh(pdu->offset));
     payload_len = le16toh(pdu->len);
     rem_buf_sz  = sizeof(m_rx_ctx.data) - m_rx_ctx.len;
 
@@ -350,12 +357,12 @@ void ncp_proc_serial_rx_pkt(uint8_t* buf) {
     }
 
     if (m_rx_ctx.len == 0) {
-        /* New Buffer */
+        // New Buffer
         m_rx_ctx.cur_seq_no = le16toh(pdu->seq_num);
     }
 
     if (pdu->seq_num != m_rx_ctx.cur_seq_no) {
-        /* Sequence number mismatch */
+        // Sequence number mismatch
         m_rx_ctx.valid = 1;
         ncp_parse_protobuf_req();
         return;
@@ -365,9 +372,9 @@ void ncp_proc_serial_rx_pkt(uint8_t* buf) {
     m_rx_ctx.len += min(payload_len, rem_buf_sz);
 
     if (!(pdu->flags & MORE_FRAGMENT)) {
-        /* Received complete buffer */
+        // Received complete buffer
         m_rx_ctx.valid = 1;
-        ncp_parse_protobuf_req();
+        ncp_parse_protobuf_req();                               // NCP_PROC_RX_SERIAL_IF_SEQ01
     }
 }
 
@@ -433,12 +440,12 @@ static int ncp_host_to_slave_reconfig(uint8_t* evt_buf, uint16_t len) {
             #endif
         }
         else if (*pos == SLV_CONFIG_THROTTLE_HIGH_THRESHOLD) {
-            slv_cfg_g.throttle_high_threshold = *(pos + 2);
+            g_slv_cfg.throttle_high_threshold = *(pos + 2);
             ESP_LOGI(TAG, "ESP<-Host high data throttle threshold [%u%%]",
-                     slv_cfg_g.throttle_high_threshold);
+                     g_slv_cfg.throttle_high_threshold);
 
             /* Warn if FreeRTOS tick is small */
-            if ((slv_cfg_g.throttle_low_threshold > 0) &&
+            if ((g_slv_cfg.throttle_low_threshold > 0) &&
                 (CONFIG_FREERTOS_HZ < 1000)) {
                 ESP_LOGW(TAG,
                          "FreeRTOS tick[%d]<1000. Enabling throttling with lower FrerRTOS tick may result in lower "
@@ -447,9 +454,9 @@ static int ncp_host_to_slave_reconfig(uint8_t* evt_buf, uint16_t len) {
             }
         }
         else if (*pos == SLV_CONFIG_THROTTLE_LOW_THRESHOLD) {
-            slv_cfg_g.throttle_low_threshold = *(pos + 2);
+            g_slv_cfg.throttle_low_threshold = *(pos + 2);
             ESP_LOGI(TAG, "ESP<-Host low data throttle threshold [%u%%]",
-                     slv_cfg_g.throttle_low_threshold);
+                     g_slv_cfg.throttle_low_threshold);
         }
         else {
             ESP_LOGD(TAG, "Unsupported H->S config: %2x", *pos);
@@ -459,7 +466,7 @@ static int ncp_host_to_slave_reconfig(uint8_t* evt_buf, uint16_t len) {
         len_left -= (tag_len + 2);
     }
 
-    return ESP_OK;
+    return (ESP_OK);
 }
 
 static void ncp_proc_priv_pkt(uint8_t* payload, uint16_t payload_len) {
@@ -488,26 +495,26 @@ static void ncp_proc_priv_pkt(uint8_t* payload, uint16_t payload_len) {
 }
 
 void ncp_proc_rx_pkt(interface_buffer_handle_t& buf_hndl) {
-    struct esp_payload_header* pdu = NULL;
-    uint8_t* payload = NULL;
-    uint16_t payload_len = 0;
-    int ret = 0;
+    struct esp_payload_header* pdu;
+    uint8_t* payload;
+    uint16_t payload_len;
+    int ret;
     int retry_wifi_tx = MAX_WIFI_STA_TX_RETRY;
 
-    pdu     = (struct esp_payload_header*)buf_hndl.payload;
-    payload = buf_hndl.payload + le16toh(pdu->offset);
+    pdu = (struct esp_payload_header*)buf_hndl.payload;
+    payload = (buf_hndl.payload + le16toh(pdu->offset));
     payload_len = le16toh(pdu->len);
 
     ESP_HEXLOGD("rx_new", buf_hndl.payload, min(32, buf_hndl.payload_len));
 
-    if ((buf_hndl.if_type == ESP_STA_IF) && (station_connected == true)) {
-        /* Forward data to wlan driver */
+    if ((buf_hndl.if_type == ESP_STA_IF) && (g_station_connected == true)) {
+        // Forward data to wlan driver
         do {
             ret = esp_wifi_internal_tx(WIFI_IF_STA, payload, payload_len);
 
-            /* Delay only if throttling is enabled */
+            // Delay only if throttling is enabled
             if ((ret != 0) &&
-                (slv_cfg_g.throttle_high_threshold > 0) &&
+                (g_slv_cfg.throttle_high_threshold > 0) &&
                 (retry_wifi_tx < (MAX_WIFI_STA_TX_RETRY / 2))) {
                 vTaskDelay(2);
             }
@@ -527,8 +534,8 @@ void ncp_proc_rx_pkt(interface_buffer_handle_t& buf_hndl) {
             #endif
         }
     }
-    else if (buf_hndl.if_type == ESP_AP_IF && softap_started) {
-        /* Forward data to wlan driver */
+    else if ((buf_hndl.if_type == ESP_AP_IF) && (g_softap_started == 1)) {
+        // Forward data to wlan driver
         esp_wifi_internal_tx(WIFI_IF_AP, payload, payload_len);
         ESP_HEXLOGV("AP_Put", payload, payload_len);
     }
@@ -536,52 +543,51 @@ void ncp_proc_rx_pkt(interface_buffer_handle_t& buf_hndl) {
         #if ESP_PKT_STATS
         pkt_stats.serial_rx++;
         #endif
-        ncp_proc_serial_rx_pkt(buf_hndl.payload);
+        ncp_proc_serial_rx_pkt(buf_hndl.payload);               // NCP_PROC_RX_SERIAL_IF_SEQ00
     }
     else if (buf_hndl.if_type == ESP_PRIV_IF) {
         ncp_proc_priv_pkt(payload, payload_len);
     }
-
     #if defined(CONFIG_BT_ENABLED) && BLUETOOTH_HCI
     else if (buf_hndl.if_type == ESP_HCI_IF) {
-        process_hci_rx_pkt(payload, payload_len);
+        ncp_proc_bt_hci_rx_pkt(payload, payload_len);           // NCP_PROC_RX_HCI_IF_SEQ00
     }
     #endif
-
     #if TEST_RAW_TP
     else if (buf_hndl.if_type == ESP_TEST_IF) {
         debug_update_raw_tp_rx_count(payload_len);
     }
     #endif
 
-    /* Free buffer handle */
-    if (buf_hndl.free_buf_handle && buf_hndl.priv_buffer_handle) {
+    // Free buffer handle
+    if ((buf_hndl.free_buf_handle != nullptr) &&
+        (buf_hndl.priv_buffer_handle != nullptr)) {
         buf_hndl.free_buf_handle(buf_hndl.priv_buffer_handle);
         buf_hndl.priv_buffer_handle = NULL;
     }
 }
 
-/* Get data from host */
+// Get data from host
 void ncp_rcv_tsk(void* pvParameters) {
+    auto* ctx = (interface_context_t*)pvParameters;
     interface_buffer_handle_t buf_hndl {};
 
     while (true) {
         if (g_datapath == 0) {
-            /* Datapath is not enabled by host yet*/
+            // Datapath is not enabled by host yet
             usleep(100 * 1000);
-            continue;
         }
-
-        /* Receive data from transport layer */
-        if (m_if_ctx && m_if_ctx->if_ops && m_if_ctx->if_ops->read) {
-            int len = m_if_ctx->if_ops->read(m_if_hndl, &buf_hndl);
-            if (len <= 0) {
+        else {
+            // Receive data from transport layer
+            // @see sdio_read(), esp_spi_hd_read(), h_uart_read()
+            int len = ctx->if_ops->read(m_if_hndl, &buf_hndl);
+            if (len > 0) {
+                ncp_proc_rx_pkt(buf_hndl);                      // NCP_PROC_RX_SEQ00
+            }
+            else {
                 usleep(10 * 1000);
-                continue;
             }
         }
-
-        ncp_proc_rx_pkt(buf_hndl);
     }
 }
 
@@ -603,7 +609,7 @@ static ssize_t ncp_serial_rd_dat(uint8_t* data, ssize_t len) {
 int send_to_host_queue(interface_buffer_handle_t* buf_hndl, uint8_t queue_type) {
     #if (BYPASS_TX_PRIORITY_Q == 1)
     ncp_proc_tx_pkt(buf_hndl);
-    return ESP_OK;
+    return (ESP_OK);
     #else
     int ret = xQueueSend(m_to_host_que[queue_type], buf_hndl, portMAX_DELAY);
     if (ret != pdTRUE) {
@@ -615,6 +621,7 @@ int send_to_host_queue(interface_buffer_handle_t* buf_hndl, uint8_t queue_type) 
         ret = xQueueSendToFront(m_meta_to_host_que, &queue_type, portMAX_DELAY);
     }
     else {
+        // NCP_BT_TX_HCI_IF_SEQ01
         ret = xQueueSend(m_meta_to_host_que, &queue_type, portMAX_DELAY);
     }
 
@@ -623,7 +630,7 @@ int send_to_host_queue(interface_buffer_handle_t* buf_hndl, uint8_t queue_type) 
         return ESP_FAIL;
     }
 
-    return ESP_OK;
+    return (ESP_OK);
     #endif
 }
 
@@ -670,7 +677,7 @@ static esp_err_t ncp_serial_wr_dat(uint8_t* data, ssize_t len) {
         pos += frag_len;
     } while (left_len);
 
-    return ESP_OK;
+    return (ESP_OK);
 }
 
 int event_handler(uint8_t val) {
@@ -898,7 +905,7 @@ void app_main(void) {
         return;
     }
 
-    /* Endpoint for control command responses */
+    // Endpoint for control command responses
     err = protocomm_add_endpoint(m_pc_serial, RPC_EP_NAME_RSP,
                                  data_transfer_handler, NULL);
     if (err != ESP_OK) {
@@ -906,7 +913,7 @@ void app_main(void) {
         return;
     }
 
-    /* Endpoint for control notifications for events subscribed by user */
+    // Endpoint for control notifications for events subscribed by user
     err = protocomm_add_endpoint(m_pc_serial, RPC_EP_NAME_EVT,
                                  rpc_evt_handler, NULL);
     if (err != ESP_OK) {
@@ -935,7 +942,7 @@ void app_main(void) {
     }
 
     xReturn = xTaskCreate(ncp_rcv_tsk, "ncp_rcv_tsk",
-                          CONFIG_ESP_DEFAULT_TASK_STACK_SIZE, NULL,
+                          CONFIG_ESP_DEFAULT_TASK_STACK_SIZE, m_if_ctx,
                           CONFIG_ESP_DEFAULT_TASK_PRIO, NULL);
     assert(xReturn == pdTRUE);
 

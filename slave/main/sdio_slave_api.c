@@ -31,10 +31,10 @@
 #include "esp_hosted_transport.h"
 #include "esp_hosted_transport_init.h"
 
-// #define SIMPLIFIED_SDIO_SLAVE          1
-#define SDIO_SLAVE_QUEUE_SIZE 20
-#define BUFFER_SIZE           MAX_TRANSPORT_BUF_SIZE
-#define BUFFER_NUM            20
+#define SIMPLIFIED_SDIO_SLAVE   0
+#define SDIO_SLAVE_QUEUE_SIZE   20
+#define BUFFER_SIZE MAX_TRANSPORT_BUF_SIZE
+#define BUFFER_NUM  20
 static uint8_t sdio_slave_rx_buffer[BUFFER_NUM][BUFFER_SIZE];
 
 #define SDIO_MEMPOOL_NUM_BLOCKS 40
@@ -46,7 +46,7 @@ static char const TAG[] = "SDIO_SLAVE";
 
 #define SDIO_RX_QUEUE_SIZE CONFIG_ESP_SDIO_RX_Q_SIZE
 
-#if !SIMPLIFIED_SDIO_SLAVE
+#if (SIMPLIFIED_SDIO_SLAVE == 0)
 static SemaphoreHandle_t sdio_rx_sem;
 static QueueHandle_t     sdio_rx_queue[MAX_PRIORITY_QUEUES];
 static SemaphoreHandle_t sdio_send_queue_sem = NULL; // to count number of Tx bufs in IDF SDIO driver
@@ -74,14 +74,12 @@ static SemaphoreHandle_t sdio_send_queue_sem = NULL; // to count number of Tx bu
 #endif
 
 static interface_handle_t* sdio_init(void);
-static int32_t             sdio_write(interface_handle_t* handle, interface_buffer_handle_t* buf_handle);
-static int                 sdio_read(interface_handle_t* if_handle, interface_buffer_handle_t* buf_handle);
-static esp_err_t           sdio_reset(interface_handle_t* handle);
-static void                sdio_deinit(interface_handle_t* handle);
-#if !SIMPLIFIED_SDIO_SLAVE
+static int32_t sdio_write(interface_handle_t* handle, interface_buffer_handle_t* buf_handle);
+static int sdio_read(interface_handle_t* if_handle, interface_buffer_handle_t* buf_handle);
+static esp_err_t sdio_reset(interface_handle_t* handle);
+static void sdio_deinit(interface_handle_t* handle);
 static void sdio_rx_task(void* pvParameters);
 static void sdio_tx_done_task(void* pvParameters);
-#endif
 
 static if_ops_t const if_ops = {
     .init   = sdio_init,
@@ -113,15 +111,15 @@ static inline void sdio_buffer_tx_free(void* buf) {
     hosted_mempool_free(buf_mp_tx_g, buf);
 }
 
-#if !SIMPLIFIED_SDIO_SLAVE
+#if (SIMPLIFIED_SDIO_SLAVE == 0)
 static void start_rx_data_throttling_if_needed(void) {
     uint32_t queue_load;
     uint8_t  load_percent;
 
-    if (slv_cfg_g.throttle_high_threshold > 0) {
+    if (g_slv_cfg.throttle_high_threshold > 0) {
 
         /* Already throttling, nothing to be done */
-        if (slv_state_g.current_throttling) {
+        if (g_slv_state.current_throttling) {
             return;
         }
 
@@ -131,8 +129,8 @@ static void start_rx_data_throttling_if_needed(void) {
 #endif
 
         load_percent = (queue_load * 100 / SDIO_RX_QUEUE_SIZE);
-        if (load_percent > slv_cfg_g.throttle_high_threshold) {
-            slv_state_g.current_throttling = 1;
+        if (load_percent > g_slv_cfg.throttle_high_threshold) {
+            g_slv_state.current_throttling = 1;
             ESP_LOGV(TAG, "start data throttling at host");
             sdio_slave_send_host_int(HOST_INT_START_THROTTLE);
         }
@@ -143,7 +141,7 @@ static void stop_rx_data_throttling_if_needed(void) {
     uint32_t queue_load;
     uint8_t  load_percent;
 
-    if (slv_state_g.current_throttling) {
+    if (g_slv_state.current_throttling) {
 
         queue_load = uxQueueMessagesWaiting(sdio_rx_queue[PRIO_Q_OTHERS]);
 #if ESP_PKT_STATS
@@ -151,8 +149,8 @@ static void stop_rx_data_throttling_if_needed(void) {
 #endif
 
         load_percent = (queue_load * 100 / SDIO_RX_QUEUE_SIZE);
-        if (load_percent < slv_cfg_g.throttle_low_threshold) {
-            slv_state_g.current_throttling = 0;
+        if (load_percent < g_slv_cfg.throttle_low_threshold) {
+            g_slv_state.current_throttling = 0;
             ESP_LOGV(TAG, "stop data throttling at host");
             sdio_slave_send_host_int(HOST_INT_STOP_THROTTLE);
         }
@@ -276,7 +274,7 @@ void generate_startup_event(uint8_t cap, uint32_t ext_cap) {
 
     ESP_HEXLOGD("sdio_tx_init", buf_handle.payload, buf_handle.payload_len);
 
-#if !SIMPLIFIED_SDIO_SLAVE
+#if (SIMPLIFIED_SDIO_SLAVE == 0)
     xSemaphoreTake(sdio_send_queue_sem, portMAX_DELAY);
     ret = sdio_slave_send_queue(buf_handle.payload, buf_handle.payload_len, buf_handle.payload, portMAX_DELAY);
 #else
@@ -287,9 +285,10 @@ void generate_startup_event(uint8_t cap, uint32_t ext_cap) {
         sdio_buffer_tx_free(buf_handle.payload);
         return;
     }
-#if SIMPLIFIED_SDIO_SLAVE
-    sdio_buffer_tx_free(buf_handle.payload);
-#endif
+
+    if (SIMPLIFIED_SDIO_SLAVE == 1) {
+        sdio_buffer_tx_free(buf_handle.payload);
+    }
 }
 
 static void sdio_read_done(void* handle) {
@@ -297,10 +296,7 @@ static void sdio_read_done(void* handle) {
 }
 
 static interface_handle_t* sdio_init(void) {
-#if !SIMPLIFIED_SDIO_SLAVE
-    uint16_t prio_q_idx = 0;
-#endif
-    esp_err_t               ret    = ESP_OK;
+    esp_err_t ret;
     sdio_slave_buf_handle_t handle = {0};
     sdio_slave_config_t     config = {
 #if CONFIG_ESP_SDIO_STREAMING_MODE
@@ -340,18 +336,19 @@ static interface_handle_t* sdio_init(void) {
     ESP_LOGI(TAG, "%s: ESP32 SDIO RxQ[%d] timing[%u]\n", __func__, SDIO_RX_QUEUE_SIZE, config.timing);
 #endif
 
-#if !SIMPLIFIED_SDIO_SLAVE
-    sdio_send_queue_sem = xSemaphoreCreateCounting(SDIO_SLAVE_QUEUE_SIZE, SDIO_SLAVE_QUEUE_SIZE);
-    assert(sdio_send_queue_sem);
+    if (SIMPLIFIED_SDIO_SLAVE == 0) {
+        sdio_send_queue_sem = xSemaphoreCreateCounting(SDIO_SLAVE_QUEUE_SIZE, SDIO_SLAVE_QUEUE_SIZE);
+        assert(sdio_send_queue_sem);
 
-    sdio_rx_sem = xSemaphoreCreateCounting(SDIO_RX_QUEUE_SIZE * 3, 0);
-    assert(sdio_rx_sem != NULL);
+        sdio_rx_sem = xSemaphoreCreateCounting(SDIO_RX_QUEUE_SIZE * 3, 0);
+        assert(sdio_rx_sem != NULL);
 
-    for (prio_q_idx = 0; prio_q_idx < MAX_PRIORITY_QUEUES; prio_q_idx++) {
-        sdio_rx_queue[prio_q_idx] = xQueueCreate(SDIO_RX_QUEUE_SIZE, sizeof(interface_buffer_handle_t));
-        assert(sdio_rx_queue[prio_q_idx] != NULL);
+        for (uint16_t prio_q_idx = 0; prio_q_idx < MAX_PRIORITY_QUEUES; prio_q_idx++) {
+            sdio_rx_queue[prio_q_idx] = xQueueCreate(SDIO_RX_QUEUE_SIZE, sizeof(interface_buffer_handle_t));
+            assert(sdio_rx_queue[prio_q_idx] != NULL);
+        }
     }
-#endif
+
     ret = sdio_slave_initialize(&config);
     if (ret != ESP_OK) {
         return NULL;
@@ -384,23 +381,27 @@ static interface_handle_t* sdio_init(void) {
     sdio_mempool_create();
     m_if_hndl.state = INIT;
 
-#if !SIMPLIFIED_SDIO_SLAVE
-    assert(xTaskCreate(sdio_rx_task, "sdio_rx_task", CONFIG_ESP_DEFAULT_TASK_STACK_SIZE, NULL,
-                       CONFIG_ESP_DEFAULT_TASK_PRIO, NULL) == pdTRUE);
+    if (SIMPLIFIED_SDIO_SLAVE == 0) {
+        BaseType_t xReturn;
 
-    // task to clean up after doing sdio tx
-    assert(xTaskCreate(sdio_tx_done_task, "sdio_tx_done_task", CONFIG_ESP_DEFAULT_TASK_STACK_SIZE, NULL,
-                       CONFIG_ESP_DEFAULT_TASK_PRIO, NULL) == pdTRUE);
-#endif
+        xReturn = xTaskCreate(sdio_rx_task, "sdio_rx_task", CONFIG_ESP_DEFAULT_TASK_STACK_SIZE, NULL,
+                              CONFIG_ESP_DEFAULT_TASK_PRIO, NULL);
+        assert(xReturn == pdTRUE);
+
+        // task to clean up after doing sdio tx
+        xReturn = xTaskCreate(sdio_tx_done_task, "sdio_tx_done_task", CONFIG_ESP_DEFAULT_TASK_STACK_SIZE, NULL,
+                              CONFIG_ESP_DEFAULT_TASK_PRIO, NULL);
+        assert(xReturn == pdTRUE);
+    }
+
     return &m_if_hndl;
 }
 
 /* wait for sdio to finish tx, then free the buffer */
-#if !SIMPLIFIED_SDIO_SLAVE
 static void sdio_tx_done_task(void* pvParameters) {
     esp_err_t res;
-    uint8_t   sendbuf   = 0;
-    uint8_t*  sendbuf_p = &sendbuf;
+    uint8_t sendbuf = 0;
+    uint8_t* sendbuf_p = &sendbuf;
 
     while (true) {
         res = sdio_slave_send_get_finished((void**)&sendbuf_p, portMAX_DELAY);
@@ -412,14 +413,13 @@ static void sdio_tx_done_task(void* pvParameters) {
         sdio_buffer_tx_free(sendbuf_p);
     }
 }
-#endif
 
 static int32_t sdio_write(interface_handle_t* handle, interface_buffer_handle_t* buf_handle) {
-    esp_err_t                  ret       = ESP_OK;
-    int32_t                    total_len = 0;
-    uint8_t*                   sendbuf   = NULL;
-    uint16_t                   offset    = sizeof(struct esp_payload_header);
-    struct esp_payload_header* header    = NULL;
+    esp_err_t ret;
+    size_t total_len;
+    uint8_t* sendbuf;
+    uint16_t offset = sizeof(struct esp_payload_header);
+    struct esp_payload_header* header;
 
     if (!handle || !buf_handle) {
         ESP_LOGE(TAG, "Invalid arguments");
@@ -435,7 +435,7 @@ static int32_t sdio_write(interface_handle_t* handle, interface_buffer_handle_t*
         return ESP_FAIL;
     }
 
-    total_len = buf_handle->payload_len + offset;
+    total_len = (buf_handle->payload_len + offset);
 
     sendbuf = sdio_buffer_tx_alloc(total_len, MEMSET_REQUIRED);
     if (sendbuf == NULL) {
@@ -447,7 +447,7 @@ static int32_t sdio_write(interface_handle_t* handle, interface_buffer_handle_t*
 
     memset(header, 0, sizeof(struct esp_payload_header));
 
-    /* Initialize header */
+    // Initialize header
     header->if_type = buf_handle->if_type;
     header->if_num  = buf_handle->if_num;
     header->len     = htole16(buf_handle->payload_len);
@@ -463,21 +463,23 @@ static int32_t sdio_write(interface_handle_t* handle, interface_buffer_handle_t*
 
     ESP_HEXLOGD("sdio_tx", sendbuf, min(32, total_len));
 
-#if !SIMPLIFIED_SDIO_SLAVE
-    xSemaphoreTake(sdio_send_queue_sem, portMAX_DELAY);
-    ret = sdio_slave_send_queue(sendbuf, total_len, sendbuf, portMAX_DELAY);
-#else
-    ret = sdio_slave_transmit(sendbuf, total_len);
-#endif
+    if (SIMPLIFIED_SDIO_SLAVE == 0) {
+        xSemaphoreTake(sdio_send_queue_sem, portMAX_DELAY);
+        ret = sdio_slave_send_queue(sendbuf, total_len, sendbuf, portMAX_DELAY);
+    }
+    else {
+        ret = sdio_slave_transmit(sendbuf, total_len);
+    }
+
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "sdio slave transmit error, ret : 0x%x\r\n", ret);
         sdio_buffer_tx_free(sendbuf);
         return ESP_FAIL;
     }
 
-#if SIMPLIFIED_SDIO_SLAVE
-    sdio_buffer_tx_free(sendbuf);
-#endif
+    if (SIMPLIFIED_SDIO_SLAVE == 1) {
+        sdio_buffer_tx_free(sendbuf);
+    }
 
 #if ESP_PKT_STATS
     if (header->if_type == ESP_STA_IF) {
@@ -490,7 +492,7 @@ static int32_t sdio_write(interface_handle_t* handle, interface_buffer_handle_t*
     return buf_handle->payload_len;
 }
 
-#if !SIMPLIFIED_SDIO_SLAVE
+#if (SIMPLIFIED_SDIO_SLAVE == 0)
 static int sdio_read(interface_handle_t* if_handle, interface_buffer_handle_t* buf_handle) {
     if (!if_handle || (if_handle->state != ACTIVE) || !buf_handle) {
         ESP_LOGE(TAG, "%s: Invalid state/args", __func__);
@@ -514,42 +516,43 @@ static int sdio_read(interface_handle_t* if_handle, interface_buffer_handle_t* b
 }
 
 static void sdio_rx_task(void* pvParameters) {
-    esp_err_t                  ret    = ESP_OK;
+    esp_err_t ret;
     struct esp_payload_header* header = NULL;
-#if CONFIG_ESP_SDIO_CHECKSUM
-    uint16_t rx_checksum = 0, checksum = 0;
-#endif
-    uint16_t                  len = 0, offset = 0;
-    size_t                    sdio_read_len = 0;
-    interface_buffer_handle_t buf_handle    = {0};
+    #if CONFIG_ESP_SDIO_CHECKSUM
+    uint16_t rx_checksum = 0;
+    uint16_t checksum = 0;
+    #endif
+    uint16_t len;
+    uint16_t offset;
+    size_t sdio_read_len = 0;
+    interface_buffer_handle_t buf_handle = {0};
 
     while (true) {
-        ret = sdio_slave_recv(&(buf_handle.sdio_buf_handle), &(buf_handle.payload), &(sdio_read_len), portMAX_DELAY);
+        ret = sdio_slave_recv(&buf_handle.sdio_buf_handle, &buf_handle.payload, &sdio_read_len, portMAX_DELAY);
         if (ret) {
             ESP_LOGE(TAG, "sdio_slave_recv returned failure");
             continue;
         }
 
-        buf_handle.payload_len = sdio_read_len & 0xFFFF;
+        buf_handle.payload_len = (sdio_read_len & 0xFFFF);
 
         header = (struct esp_payload_header*)buf_handle.payload;
 
         len = le16toh(header->len);
-        if (!len) {
+        if (len == 0) {
             ESP_LOGE(TAG, "sdio_slave_recv returned 0 len");
             sdio_read_done(buf_handle.sdio_buf_handle);
             continue;
         }
 
         offset = le16toh(header->offset);
-
-        if (buf_handle.payload_len < len + offset) {
+        if (buf_handle.payload_len < (len + offset)) {
             ESP_LOGE(TAG, "%s: err: read_len[%u] < len[%u]+offset[%u]", __func__, buf_handle.payload_len, len, offset);
             sdio_read_done(buf_handle.sdio_buf_handle);
             continue;
         }
 
-#if CONFIG_ESP_SDIO_CHECKSUM
+        #if CONFIG_ESP_SDIO_CHECKSUM
         rx_checksum      = le16toh(header->checksum);
         header->checksum = 0;
 
@@ -560,19 +563,20 @@ static void sdio_rx_task(void* pvParameters) {
             sdio_read_done(buf_handle.sdio_buf_handle);
             continue;
         }
-#endif
+        #endif
 
-        buf_handle.if_type         = header->if_type;
-        buf_handle.if_num          = header->if_num;
+        buf_handle.if_type = header->if_type;
+        buf_handle.if_num  = header->if_num;
         buf_handle.free_buf_handle = sdio_read_done;
 
         start_rx_data_throttling_if_needed();
 
-#if ESP_PKT_STATS
+        #if ESP_PKT_STATS
         if (header->if_type == ESP_STA_IF) {
             pkt_stats.hs_bus_sta_in++;
         }
-#endif
+        #endif
+
         if (header->if_type == ESP_SERIAL_IF) {
             xQueueSend(sdio_rx_queue[PRIO_Q_SERIAL], &buf_handle, portMAX_DELAY);
         }
@@ -586,7 +590,7 @@ static void sdio_rx_task(void* pvParameters) {
         xSemaphoreGive(sdio_rx_sem);
     }
 }
-#else /* !SIMPLIFIED_SDIO_SLAVE */
+#else /* (SIMPLIFIED_SDIO_SLAVE == 0) */
 static int sdio_read(interface_handle_t* if_handle, interface_buffer_handle_t* buf_handle) {
     esp_err_t                  ret    = ESP_OK;
     struct esp_payload_header* header = NULL;
@@ -640,7 +644,7 @@ static int sdio_read(interface_handle_t* if_handle, interface_buffer_handle_t* b
     buf_handle->free_buf_handle = sdio_read_done;
     return len;
 }
-#endif /* !SIMPLIFIED_SDIO_SLAVE */
+#endif /* (SIMPLIFIED_SDIO_SLAVE == 0) */
 
 static esp_err_t sdio_reset(interface_handle_t* handle) {
     esp_err_t ret = ESP_OK;
@@ -662,7 +666,7 @@ static esp_err_t sdio_reset(interface_handle_t* handle) {
         return ret;
     }
 
-    while (1) {
+    while (true) {
         sdio_slave_buf_handle_t handle = NULL;
 
         /* Return buffers to driver */
@@ -670,7 +674,7 @@ static esp_err_t sdio_reset(interface_handle_t* handle) {
         if (ret != ESP_OK) {
             break;
         }
-#if !SIMPLIFIED_SDIO_SLAVE
+#if (SIMPLIFIED_SDIO_SLAVE == 0)
         xSemaphoreGive(sdio_send_queue_sem);
 #endif
 

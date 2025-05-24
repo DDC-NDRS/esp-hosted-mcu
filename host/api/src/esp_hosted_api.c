@@ -75,12 +75,12 @@ static esp_err_t add_esp_wifi_remote_channels(void) {
     /* Add two other channels for the two WiFi interfaces (STA, softAP) in plain text */
     config.secure  = false;
     config.if_type = ESP_STA_IF;
-    ch             = esp_hosted_add_channel(&config, &tx_cb, esp_wifi_remote_channel_rx);
+    ch = esp_hosted_add_channel(&config, &tx_cb, esp_wifi_remote_channel_rx);
     esp_wifi_remote_channel_set(WIFI_IF_STA, ch, tx_cb);
 
     config.secure  = false;
     config.if_type = ESP_AP_IF;
-    ch             = esp_hosted_add_channel(&config, &tx_cb, esp_wifi_remote_channel_rx);
+    ch = esp_hosted_add_channel(&config, &tx_cb, esp_wifi_remote_channel_rx);
     esp_wifi_remote_channel_set(WIFI_IF_AP, ch, tx_cb);
 
     return ESP_OK;
@@ -159,7 +159,7 @@ esp_remote_channel_t esp_hosted_add_channel(esp_remote_channel_config_t config,
 
     t_chan = transport_drv_add_channel(eh_chan, config->if_type, config->secure, tx, rx);
     if (t_chan) {
-        *tx             = t_chan->tx;
+        *tx = t_chan->tx;
         eh_chan->t_chan = t_chan;
         return eh_chan;
     }

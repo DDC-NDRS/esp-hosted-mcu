@@ -160,7 +160,7 @@
 extern "C" {
 #endif
 
-void process_hci_rx_pkt(uint8_t* payload, uint16_t payload_len);
+void ncp_proc_bt_hci_rx_pkt(uint8_t* payload, uint16_t payload_len);
 
 #ifdef __cplusplus
 }

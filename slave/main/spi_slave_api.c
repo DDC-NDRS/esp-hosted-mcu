@@ -216,7 +216,7 @@ static inline int find_wifi_tx_throttling_to_be_set(void) {
     uint16_t queue_load;
     uint8_t  load_percent;
 
-    if (!slv_cfg_g.throttle_high_threshold) {
+    if (!g_slv_cfg.throttle_high_threshold) {
         /* No high threshold set, no throttlling */
         return 0;
     }
@@ -228,17 +228,17 @@ static inline int find_wifi_tx_throttling_to_be_set(void) {
 
     load_percent = (queue_load * 100 / SPI_RX_QUEUE_SIZE);
 
-    if (load_percent > slv_cfg_g.throttle_high_threshold) {
-        slv_state_g.current_throttling = 1;
+    if (load_percent > g_slv_cfg.throttle_high_threshold) {
+        g_slv_state.current_throttling = 1;
         ESP_LOGV(TAG, "throttling started");
     }
 
-    if (load_percent < slv_cfg_g.throttle_low_threshold) {
-        slv_state_g.current_throttling = 0;
+    if (load_percent < g_slv_cfg.throttle_low_threshold) {
+        g_slv_state.current_throttling = 0;
         ESP_LOGV(TAG, "throttling stopped");
     }
 
-    return slv_state_g.current_throttling;
+    return g_slv_state.current_throttling;
 }
 
 void generate_startup_event(uint8_t cap, uint32_t ext_cap) {

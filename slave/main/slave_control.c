@@ -237,8 +237,8 @@ static int              ota_msg          = 0;
 extern esp_err_t wlan_sta_rx_callback(void* buffer, uint16_t len, void* eb);
 extern esp_err_t wlan_ap_rx_callback(void* buffer, uint16_t len, void* eb);
 
-extern volatile uint8_t station_connected;
-extern volatile uint8_t softap_started;
+extern volatile uint8_t g_station_connected;
+extern volatile uint8_t g_softap_started;
 
 /* OTA end timer callback */
 void vTimerCallback(TimerHandle_t xTimer) {
@@ -655,10 +655,10 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
             ESP_LOGI(TAG, "Sta mode connected");
             send_event_data_to_host(RPC_ID__Event_StaConnected, event_data, sizeof(wifi_event_sta_connected_t));
             esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_STA, (wifi_rxcb_t)wlan_sta_rx_callback);
-            station_connected = true;
+            g_station_connected = true;
         }
         else if (event_id == WIFI_EVENT_STA_DISCONNECTED) {
-            station_connected = false;
+            g_station_connected = false;
             esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_STA, NULL);
             ESP_LOGI(TAG, "Sta mode disconnect");
             send_event_data_to_host(RPC_ID__Event_StaDisconnected, event_data, sizeof(wifi_event_sta_disconnected_t));
@@ -667,12 +667,12 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
             if (event_id == WIFI_EVENT_AP_START) {
                 ESP_LOGI(TAG, "softap started");
                 esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_AP, (wifi_rxcb_t)wlan_ap_rx_callback);
-                softap_started = 1;
+                g_softap_started = 1;
             }
             else if (event_id == WIFI_EVENT_AP_STOP) {
                 ESP_LOGI(TAG, "softap stopped");
                 esp_wifi_internal_reg_rxcb(ESP_IF_WIFI_AP, NULL);
-                softap_started = 0;
+                g_softap_started = 0;
             }
 
             send_event_data_to_host(RPC_ID__Event_WifiEventNoArgs, &event_id, sizeof(event_id));
@@ -1789,7 +1789,7 @@ static esp_err_t req_wifi_(Rpc *req, Rpc *resp, void *priv_data)
 }
 #endif
 
-static esp_rpc_req_t req_table[] = {
+static esp_rpc_req_t const req_table[] = {
     {              .req_num = RPC_ID__Req_GetMACAddress,                    .command_handler = req_wifi_get_mac},
     {                .req_num = RPC_ID__Req_GetWifiMode,                   .command_handler = req_wifi_get_mode},
     {                .req_num = RPC_ID__Req_SetWifiMode,                   .command_handler = req_wifi_set_mode},
@@ -1857,8 +1857,8 @@ static int lookup_req_handler(int req_id) {
 }
 
 static esp_err_t esp_rpc_command_dispatcher(Rpc* req, Rpc* resp, void* priv_data) {
-    esp_err_t ret       = ESP_OK;
-    int       req_index = 0;
+    esp_err_t ret;
+    int req_index;
 
     if (!req || !resp) {
         ESP_LOGE(TAG, "Invalid parameters in command");
@@ -1900,8 +1900,8 @@ static void esp_rpc_cleanup(Rpc* resp) {
 
 esp_err_t data_transfer_handler(uint32_t session_id, uint8_t const* inbuf, ssize_t inlen, uint8_t** outbuf,
                                 ssize_t* outlen, void* priv_data) {
-    Rpc*      req = NULL;
-    esp_err_t ret = ESP_OK;
+    Rpc* req;
+    esp_err_t ret;
 
     Rpc* resp = (Rpc*)calloc(1, sizeof(Rpc)); // resp deallocated in esp_rpc_cleanup()
     if (!resp) {
@@ -2130,34 +2130,42 @@ esp_err_t rpc_evt_handler(uint32_t session_id, uint8_t const* inbuf, ssize_t inl
             ret = rpc_evt_ESPInit(ntfy);
             break;
         }
+
         case RPC_ID__Event_Heartbeat : {
             ret = rpc_evt_heartbeat(ntfy);
             break;
         }
+
         case RPC_ID__Event_AP_StaConnected : {
             ret = rpc_evt_ap_staconn_conn_disconn(ntfy, inbuf, inlen, WIFI_EVENT_AP_STACONNECTED);
             break;
         }
+
         case RPC_ID__Event_AP_StaDisconnected : {
             ret = rpc_evt_ap_staconn_conn_disconn(ntfy, inbuf, inlen, WIFI_EVENT_AP_STADISCONNECTED);
             break;
         }
+
         case RPC_ID__Event_StaScanDone : {
             ret = rpc_evt_sta_scan_done(ntfy, inbuf, inlen, WIFI_EVENT_SCAN_DONE);
             break;
         }
+
         case RPC_ID__Event_StaConnected : {
             ret = rpc_evt_sta_connected(ntfy, inbuf, inlen, WIFI_EVENT_STA_CONNECTED);
             break;
         }
+
         case RPC_ID__Event_StaDisconnected : {
             ret = rpc_evt_sta_disconnected(ntfy, inbuf, inlen, WIFI_EVENT_STA_DISCONNECTED);
             break;
         }
+
         case RPC_ID__Event_WifiEventNoArgs : {
             ret = rpc_evt_Event_WifiEventNoArgs(ntfy, inbuf, inlen);
             break;
         }
+
         default : {
             ESP_LOGE(TAG, "Incorrect/unsupported Ctrl Notification[%u]\n", ntfy->msg_id);
             goto err;

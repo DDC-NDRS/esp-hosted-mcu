@@ -713,7 +713,7 @@ static void sdio_data_to_rx_buf_task(void const* pvParameters) {
     uint8_t* buf;
     uint32_t len;
 
-    while (1) {
+    while (true) {
         g_h.funcs->_h_get_semaphore(sem_double_buf_xfer_data, HOSTED_BLOCK_MAX);
 
         if (double_buf.read_index < 0) {
@@ -924,8 +924,8 @@ static void sdio_read_task(void const* pvParameters) {
  */
 static void sdio_process_rx_task(void const* pvParameters) {
     interface_buffer_handle_t  buf_handle_l = {0};
-    interface_buffer_handle_t* buf_handle   = NULL;
-    int                        ret          = 0;
+    interface_buffer_handle_t* buf_handle = NULL;
+    int ret = 0;
 
     struct esp_priv_event* event = NULL;
 
@@ -937,7 +937,7 @@ static void sdio_process_rx_task(void const* pvParameters) {
     }
     ESP_LOGI(TAG, "Starting SDIO process rx task");
 
-    while (1) {
+    while (true) {
         g_h.funcs->_h_get_semaphore(sem_from_slave_queue, HOSTED_BLOCK_MAX);
 
         if (g_h.funcs->_h_dequeue_item(from_slave_queue[PRIO_Q_SERIAL], &buf_handle_l, 0)) {

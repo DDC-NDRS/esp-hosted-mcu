@@ -146,6 +146,6 @@ int send_to_host_queue(interface_buffer_handle_t* buf_handle, uint8_t queue_type
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #endif
 
-extern slave_config_t slv_cfg_g;
-extern slave_state_t  slv_state_g;
+extern slave_config_t g_slv_cfg;
+extern slave_state_t  g_slv_state;
 #endif

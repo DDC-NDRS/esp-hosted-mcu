@@ -42,19 +42,19 @@ static char const* TAG = "h_bt";
 #define VHCI_MAX_TIMEOUT_MS 2000
 static SemaphoreHandle_t vhci_send_sem;
 
-static void controller_rcv_pkt_ready(void) {
+static void slave_bt_ctl_rcv_pkt_rdy(void) {
     if (vhci_send_sem) {
         xSemaphoreGive(vhci_send_sem);
     }
 }
 
-static int host_rcv_pkt(uint8_t* data, uint16_t len) {
+static int slave_bt_host_rcv_pkt(uint8_t* data, uint16_t len) {
     interface_buffer_handle_t buf_handle;
-    uint8_t*                  buf = NULL;
+    uint8_t* buf;
+    esp_err_t err;
 
     buf = (uint8_t*)malloc(len);
-
-    if (!buf) {
+    if (buf == NULL) {
         ESP_LOGE(TAG, "HCI Send packet: memory allocation failed");
         return ESP_FAIL;
     }
@@ -63,6 +63,7 @@ static int host_rcv_pkt(uint8_t* data, uint16_t len) {
 
     memset(&buf_handle, 0, sizeof(buf_handle));
 
+    // NCP_BT_TX_HCI_IF_SEQ00
     buf_handle.if_type         = ESP_HCI_IF;
     buf_handle.if_num          = 0;
     buf_handle.payload_len     = len;
@@ -72,18 +73,20 @@ static int host_rcv_pkt(uint8_t* data, uint16_t len) {
 
     ESP_HEXLOGV("bt_tx new", data, len);
 
-    if (send_to_host_queue(&buf_handle, PRIO_Q_BT)) {
+    err = send_to_host_queue(&buf_handle, PRIO_Q_BT);
+    if (err != ESP_OK) {
         free(buf);
-        return ESP_FAIL;
     }
 
-    return 0;
+    return err;
 }
 
-static esp_vhci_host_callback_t vhci_host_cb = {.notify_host_send_available = controller_rcv_pkt_ready,
-                                                .notify_host_recv           = host_rcv_pkt};
+static esp_vhci_host_callback_t const vhci_host_cb = {
+    .notify_host_send_available = slave_bt_ctl_rcv_pkt_rdy,
+    .notify_host_recv = slave_bt_host_rcv_pkt
+};
 
-void process_hci_rx_pkt(uint8_t* payload, uint16_t payload_len) {
+void ncp_proc_bt_hci_rx_pkt(uint8_t* payload, uint16_t payload_len) {
     /* VHCI needs one extra byte at the start of payload */
     /* that is accomodated in esp_payload_header */
     ESP_HEXLOGV("bt_rx", payload, payload_len);
@@ -183,8 +186,8 @@ int ble_hs_rx_data(struct os_mbuf* om, void* arg) {
 
 esp_err_t initialise_bluetooth(void) {
 #if CONFIG_BT_ENABLED
-    uint8_t                    mac[BSSID_BYTES_SIZE] = {0};
-    esp_bt_controller_config_t bt_cfg                = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
+    uint8_t mac[BSSID_BYTES_SIZE] = {0};
+    esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
 
     ESP_ERROR_CHECK(esp_read_mac(mac, ESP_MAC_BT));
     ESP_LOGI(TAG, "ESP Bluetooth MAC addr: %02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4],

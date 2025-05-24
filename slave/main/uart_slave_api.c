@@ -161,10 +161,10 @@ static void start_rx_data_throttling_if_needed(void) {
     uint32_t queue_load;
     uint8_t  load_percent;
 
-    if (slv_cfg_g.throttle_high_threshold > 0) {
+    if (g_slv_cfg.throttle_high_threshold > 0) {
 
         /* Already throttling, nothing to be done */
-        if (slv_state_g.current_throttling) {
+        if (g_slv_state.current_throttling) {
             return;
         }
 
@@ -174,8 +174,8 @@ static void start_rx_data_throttling_if_needed(void) {
 #endif
 
         load_percent = (queue_load * 100 / HOSTED_UART_RX_QUEUE_SIZE);
-        if (load_percent > slv_cfg_g.throttle_high_threshold) {
-            slv_state_g.current_throttling = 1;
+        if (load_percent > g_slv_cfg.throttle_high_threshold) {
+            g_slv_state.current_throttling = 1;
             wifi_flow_ctrl                 = 1;
             TRIGGER_FLOW_CTRL();
         }
@@ -186,7 +186,7 @@ static void stop_rx_data_throttling_if_needed(void) {
     uint32_t queue_load;
     uint8_t  load_percent;
 
-    if (slv_state_g.current_throttling) {
+    if (g_slv_state.current_throttling) {
 
         queue_load = uxQueueMessagesWaiting(uart_rx_queue[PRIO_Q_OTHERS]);
 #if ESP_PKT_STATS
@@ -194,8 +194,8 @@ static void stop_rx_data_throttling_if_needed(void) {
 #endif
 
         load_percent = (queue_load * 100 / HOSTED_UART_RX_QUEUE_SIZE);
-        if (load_percent < slv_cfg_g.throttle_low_threshold) {
-            slv_state_g.current_throttling = 0;
+        if (load_percent < g_slv_cfg.throttle_low_threshold) {
+            g_slv_state.current_throttling = 0;
             wifi_flow_ctrl                 = 0;
             TRIGGER_FLOW_CTRL();
         }
