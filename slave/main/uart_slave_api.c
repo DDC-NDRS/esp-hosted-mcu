@@ -139,7 +139,7 @@ static void flow_ctrl_task(void* pvParameters) {
     flow_ctrl_sem = xSemaphoreCreateBinary();
     assert(flow_ctrl_sem);
 
-    for (;;) {
+    while (true) {
         interface_buffer_handle_t buf_handle = {0};
 
         xSemaphoreTake(flow_ctrl_sem, portMAX_DELAY);

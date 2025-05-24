@@ -554,7 +554,7 @@ static void spi_transaction_tx_task(void* pvParameters) {
     esp_err_t                 ret = 0;
     interface_buffer_handle_t buf_handle;
 
-    for (;;) {
+    while (true) {
         xSemaphoreTake(spi_tx_sem, portMAX_DELAY);
 
         if (pdFALSE == xQueueReceive(spi_tx_queue[PRIO_Q_SERIAL], &buf_handle, 0)) {
@@ -673,7 +673,7 @@ static void spi_transaction_post_process_task(void* pvParameters) {
     esp_err_t                 ret = ESP_OK;
     interface_buffer_handle_t rx_buf_handle;
 
-    for (;;) {
+    while (true) {
         memset(&rx_buf_handle, 0, sizeof(rx_buf_handle));
 
         /* Await transmission result, after any kind of transmission a new packet

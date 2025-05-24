@@ -163,8 +163,7 @@ static void raw_tp_tx_task(void* pvParameters) {
         *ptr = 0xdeadbeef;
     }
 
-    for (;;) {
-
+    while (true) {
         if (!datapath) {
             sleep(1);
             continue;

@@ -523,8 +523,7 @@ static void sdio_rx_task(void* pvParameters) {
     size_t                    sdio_read_len = 0;
     interface_buffer_handle_t buf_handle    = {0};
 
-    for (;;) {
-
+    while (true) {
         ret = sdio_slave_recv(&(buf_handle.sdio_buf_handle), &(buf_handle.payload), &(sdio_read_len), portMAX_DELAY);
         if (ret) {
             ESP_LOGE(TAG, "sdio_slave_recv returned failure");

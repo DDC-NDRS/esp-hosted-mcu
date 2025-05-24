@@ -386,11 +386,9 @@ static int host_to_slave_reconfig(uint8_t* evt_buf, uint16_t len) {
         tag_len = *(pos + 1);
 
         if (*pos == HOST_CAPABILITIES) {
-
             ESP_LOGI(TAG, "Host capabilities: %2x", *pos);
         }
         else if (*pos == RCVD_ESP_FIRMWARE_CHIP_ID) {
-
             if (CONFIG_IDF_FIRMWARE_CHIP_ID != *(pos + 2)) {
                 ESP_LOGE(TAG, "Chip id returned[%u] doesn't match with chip id sent[%u]",
                          *(pos + 2), CONFIG_IDF_FIRMWARE_CHIP_ID);
@@ -427,7 +425,6 @@ static int host_to_slave_reconfig(uint8_t* evt_buf, uint16_t len) {
             #endif
         }
         else if (*pos == SLV_CONFIG_THROTTLE_HIGH_THRESHOLD) {
-
             slv_cfg_g.throttle_high_threshold = *(pos + 2);
             ESP_LOGI(TAG, "ESP<-Host high data throttle threshold [%u%%]",
                      slv_cfg_g.throttle_high_threshold);
@@ -442,13 +439,11 @@ static int host_to_slave_reconfig(uint8_t* evt_buf, uint16_t len) {
             }
         }
         else if (*pos == SLV_CONFIG_THROTTLE_LOW_THRESHOLD) {
-
             slv_cfg_g.throttle_low_threshold = *(pos + 2);
             ESP_LOGI(TAG, "ESP<-Host low data throttle threshold [%u%%]",
                      slv_cfg_g.throttle_low_threshold);
         }
         else {
-
             ESP_LOGD(TAG, "Unsupported H->S config: %2x", *pos);
         }
 
@@ -497,20 +492,20 @@ void process_rx_pkt(interface_buffer_handle_t* buf_handle) {
 
     ESP_HEXLOGD("rx_new", buf_handle->payload, min(32, buf_handle->payload_len));
 
-    if (buf_handle->if_type == ESP_STA_IF && station_connected) {
+    if ((buf_handle->if_type == ESP_STA_IF) && (station_connected == true)) {
         /* Forward data to wlan driver */
         do {
             ret = esp_wifi_internal_tx(ESP_IF_WIFI_STA, payload, payload_len);
 
             /* Delay only if throttling is enabled */
-            if (ret &&
-                slv_cfg_g.throttle_high_threshold &&
+            if ((ret != 0) &&
+                (slv_cfg_g.throttle_high_threshold > 0) &&
                 (retry_wifi_tx < (MAX_WIFI_STA_TX_RETRY / 2))) {
                 vTaskDelay(2);
             }
 
             retry_wifi_tx--;
-        } while (ret && retry_wifi_tx);
+        } while ((ret != 0) && retry_wifi_tx);
 
         ESP_HEXLOGV("STA_Put", payload, payload_len);
         if (ESP_OK == ret) {
@@ -562,8 +557,7 @@ void process_rx_pkt(interface_buffer_handle_t* buf_handle) {
 void recv_task(void* pvParameters) {
     interface_buffer_handle_t buf_handle = {0};
 
-    for (;;) {
-
+    while (true) {
         if (!datapath) {
             /* Datapath is not enabled by host yet*/
             usleep(100 * 1000);
