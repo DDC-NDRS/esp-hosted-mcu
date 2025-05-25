@@ -4,8 +4,10 @@
 #ifndef __ESP_HOSTED_HEADER__H
 #define __ESP_HOSTED_HEADER__H
 
+// https://github.com/espressif/esp-hosted-mcu
+// 7.1 ESP Hosted header
 struct esp_payload_header {
-    uint8_t  if_type : 4;
+    uint8_t  if_type : 4;       // @see esp_hosted_if_type_t
     uint8_t  if_num  : 4;
     uint8_t  flags;
     uint16_t len;
@@ -15,18 +17,18 @@ struct esp_payload_header {
     uint8_t  throttle_cmd : 2;
     uint8_t  reserved2 : 6;
 
-    /* Position of union field has to always be last,
-     * this is required for hci_pkt_type */
+    // Position of union field has to always be last,
+    // this is required for hci_pkt_type
     union {
         uint8_t reserved3;
-        uint8_t hci_pkt_type;  /* Packet type for HCI interface */
-        uint8_t priv_pkt_type; /* Packet type for priv interface */
+        uint8_t hci_pkt_type;   // Packet type for HCI interface
+        uint8_t priv_pkt_type;  // Packet type for priv interface
     };
 
-    /* Do no add anything here */
+    // Do no add anything here
 } __attribute__((packed));
 
-/* ESP Payload Header Flags */
+// ESP Payload Header Flags
 #define MORE_FRAGMENT (1 << 0)
 
 #define H_ESP_PAYLOAD_HEADER_OFFSET sizeof(struct esp_payload_header)

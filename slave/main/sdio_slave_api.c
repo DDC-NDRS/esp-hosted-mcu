@@ -203,9 +203,9 @@ void generate_startup_event(uint8_t cap, uint32_t ext_cap) {
 
     header = (struct esp_payload_header*)buf_handle.payload;
 
-    header->if_type       = ESP_PRIV_IF;
-    header->if_num        = 0;
-    header->offset        = htole16(sizeof(struct esp_payload_header));
+    header->if_type = ESP_PRIV_IF;
+    header->if_num  = 0;
+    header->offset  = htole16(sizeof(struct esp_payload_header));
     header->priv_pkt_type = ESP_PACKET_TYPE_EVENT;
 
     /* Populate event data */
@@ -414,7 +414,7 @@ static void sdio_tx_done_task(void* pvParameters) {
     }
 }
 
-static int32_t sdio_write(interface_handle_t* handle, interface_buffer_handle_t* buf_handle) {
+static int32_t /**/sdio_write(interface_handle_t* handle, interface_buffer_handle_t* buf_handle) {
     esp_err_t ret;
     size_t total_len;
     uint8_t* sendbuf;

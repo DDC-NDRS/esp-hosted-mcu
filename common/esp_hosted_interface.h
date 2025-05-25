@@ -11,16 +11,18 @@
 extern "C" {
 #endif
 
+// https://github.com/espressif/esp-hosted-mcu
+// 7.2 Interface Types
 typedef enum {
-	ESP_INVALID_IF,
-	ESP_STA_IF,
-	ESP_AP_IF,
-	ESP_SERIAL_IF,
-	ESP_HCI_IF,
-	ESP_PRIV_IF,
-	ESP_TEST_IF,
-	ESP_ETH_IF,
-	ESP_MAX_IF,
+    ESP_INVALID_IF,             // Invalid interface
+    ESP_STA_IF,                 // Station frame
+    ESP_AP_IF,                  // SoftAP frame
+    ESP_SERIAL_IF,              // Control frame
+    ESP_HCI_IF,                 // Bluetooth Hosted HCI frame
+    ESP_PRIV_IF,                // Private communication between slave and host
+    ESP_TEST_IF,                // Test interface
+    ESP_ETH_IF,                 // Ethernet frame (Invalid)
+    ESP_MAX_IF,                 // Type mentioned in dummy or empty frame
 } esp_hosted_if_type_t;
 
 #ifdef __cplusplus

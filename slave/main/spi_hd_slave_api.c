@@ -776,9 +776,9 @@ void generate_startup_event(uint8_t cap, uint32_t ext_cap) {
 
     header = (struct esp_payload_header*)buf_handle.payload;
 
-    header->if_type       = ESP_PRIV_IF;
-    header->if_num        = 0;
-    header->offset        = htole16(sizeof(struct esp_payload_header));
+    header->if_type = ESP_PRIV_IF;
+    header->if_num  = 0;
+    header->offset  = htole16(sizeof(struct esp_payload_header));
     header->priv_pkt_type = ESP_PACKET_TYPE_EVENT;
 
     /* Populate event data */
