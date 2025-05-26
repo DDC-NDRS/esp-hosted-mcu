@@ -562,14 +562,14 @@ int interface_remove_driver() {
 }
 
 void generate_startup_event(uint8_t cap, uint32_t ext_cap) {
-    struct esp_payload_header* header     = NULL;
-    interface_buffer_handle_t  buf_handle = {0};
-    struct esp_priv_event*     event      = NULL;
-    uint8_t*                   pos        = NULL;
-    uint16_t                   len        = 0;
-    uint8_t                    raw_tp_cap = 0;
-    uint32_t                   total_len  = 0;
-    int                        tx_len;
+    struct esp_payload_header* header;
+    interface_buffer_handle_t buf_handle = {0};
+    struct esp_priv_event* event;
+    uint8_t* pos;
+    uint16_t len;
+    uint8_t raw_tp_cap;
+    uint32_t total_len;
+    int tx_len;
 
     buf_handle.payload = h_uart_buffer_tx_alloc(512, MEMSET_REQUIRED);
     assert(buf_handle.payload);
@@ -596,86 +596,44 @@ void generate_startup_event(uint8_t cap, uint32_t ext_cap) {
     /* TLV - Board type */
     ESP_LOGI(TAG, "Slave chip Id[%x]", CONFIG_IDF_FIRMWARE_CHIP_ID);
 
-    *pos = ESP_PRIV_FIRMWARE_CHIP_ID;
-    pos++;
-    len++;
-    *pos = LENGTH_1_BYTE;
-    pos++;
-    len++;
-    *pos = CONFIG_IDF_FIRMWARE_CHIP_ID;
-    pos++;
-    len++;
+    pos[0] = ESP_PRIV_FIRMWARE_CHIP_ID;
+    pos[1] = LENGTH_1_BYTE;
+    pos[2] = CONFIG_IDF_FIRMWARE_CHIP_ID;
 
     /* TLV - Capability */
-    *pos = ESP_PRIV_CAPABILITY;
-    pos++;
-    len++;
-    *pos = LENGTH_1_BYTE;
-    pos++;
-    len++;
-    *pos = (cap & 0xFF);
-    pos++;
-    len++;
+    pos[3] = ESP_PRIV_CAPABILITY;
+    pos[4] = LENGTH_1_BYTE;
+    pos[5] = (cap & 0xFF);
 
     /* TLV - Extended Capability */
-    *pos = ESP_PRIV_CAP_EXT;
-    pos++;
-    len++;
-    *pos = LENGTH_4_BYTE;
-    pos++;
-    len++;
-    *pos = (ext_cap & 0xFF);
-    pos++;
-    len++;
-    *pos = (ext_cap >> 8) & 0xFF;
-    pos++;
-    len++;
-    *pos = (ext_cap >> 16) & 0xFF;
-    pos++;
-    len++;
-    *pos = (ext_cap >> 24) & 0xFF;
-    pos++;
-    len++;
+    pos[6]  = ESP_PRIV_CAP_EXT;
+    pos[7]  = LENGTH_4_BYTE;
+    pos[8]  = (ext_cap & 0xFF);
+    pos[9]  = (ext_cap >> 8) & 0xFF;
+    pos[10] = (ext_cap >> 16) & 0xFF;
+    pos[11] = (ext_cap >> 24) & 0xFF;
 
-    *pos = ESP_PRIV_TEST_RAW_TP;
-    pos++;
-    len++;
-    *pos = LENGTH_1_BYTE;
-    pos++;
-    len++;
-    *pos = raw_tp_cap;
-    pos++;
-    len++;
+    pos[12] = ESP_PRIV_TEST_RAW_TP;
+    pos[13] = LENGTH_1_BYTE;
+    pos[14] = raw_tp_cap;
 
-    *pos = ESP_PRIV_RX_Q_SIZE;
-    pos++;
-    len++;
-    *pos = LENGTH_1_BYTE;
-    pos++;
-    len++;
-    *pos = HOSTED_UART_RX_QUEUE_SIZE;
-    pos++;
-    len++;
+    pos[15] = ESP_PRIV_RX_Q_SIZE;
+    pos[16] = LENGTH_1_BYTE;
+    pos[17] = HOSTED_UART_RX_QUEUE_SIZE;
 
-    *pos = ESP_PRIV_TX_Q_SIZE;
-    pos++;
-    len++;
-    *pos = LENGTH_1_BYTE;
-    pos++;
-    len++;
-    *pos = HOSTED_UART_TX_QUEUE_SIZE;
-    pos++;
-    len++;
+    pos[18] = ESP_PRIV_TX_Q_SIZE;
+    pos[19] = LENGTH_1_BYTE;
+    pos[20] = HOSTED_UART_TX_QUEUE_SIZE;
+    len = 21;
 
     /* TLVs end */
-
     event->event_len = len;
 
     /* payload len = Event len + sizeof(event type) + sizeof(event len) */
     len += 2;
     header->len = htole16(len);
 
-    total_len = len + sizeof(struct esp_payload_header);
+    total_len = (len + sizeof(struct esp_payload_header));
 
     buf_handle.payload_len = total_len;
 
@@ -684,7 +642,6 @@ void generate_startup_event(uint8_t cap, uint32_t ext_cap) {
 #endif
 
     tx_len = uart_write_bytes(HOSTED_UART, (char const*)buf_handle.payload, buf_handle.payload_len);
-
     if ((tx_len < 0) || (tx_len != buf_handle.payload_len)) {
         ESP_LOGE(TAG, "startup: uart slave transmit error");
     }
