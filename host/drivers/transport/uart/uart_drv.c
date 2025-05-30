@@ -88,7 +88,7 @@ static void h_uart_write_task(void const* pvParameters) {
         g_h.funcs->_h_msleep(10);
     }
 
-    while (1) {
+    while (true) {
         /* Check if higher layers have anything to transmit */
         g_h.funcs->_h_get_semaphore(sem_to_slave_queue, HOSTED_BLOCK_MAX);
 
@@ -204,7 +204,7 @@ static int update_flow_ctrl(uint8_t* rxbuff) {
 static void h_uart_process_rx_task(void const* pvParameters) {
     interface_buffer_handle_t  buf_handle_l = {0};
     interface_buffer_handle_t* buf_handle   = NULL;
-    int                        ret          = 0;
+    int ret = 0;
 
     struct esp_priv_event* event = NULL;
 
@@ -215,7 +215,7 @@ static void h_uart_process_rx_task(void const* pvParameters) {
         }
     }
 
-    while (1) {
+    while (true) {
         g_h.funcs->_h_get_semaphore(sem_from_slave_queue, HOSTED_BLOCK_MAX);
 
         if (g_h.funcs->_h_dequeue_item(from_slave_queue[PRIO_Q_SERIAL], &buf_handle_l, 0)) {
@@ -334,8 +334,9 @@ static esp_err_t push_to_rx_queue(uint8_t* rxbuff, uint16_t len, uint16_t offset
 }
 
 static int is_valid_uart_rx_packet(uint8_t* rxbuff_a, uint16_t* len_a, uint16_t* offset_a) {
-    struct esp_payload_header* h   = (struct esp_payload_header*)rxbuff_a;
-    uint16_t                   len = 0, offset = 0;
+    struct esp_payload_header* h = (struct esp_payload_header*)rxbuff_a;
+    uint16_t len = 0;
+    uint16_t offset = 0;
 #if H_UART_CHECKSUM
     uint16_t rx_checksum = 0, checksum = 0;
 #endif
@@ -349,7 +350,6 @@ static int is_valid_uart_rx_packet(uint8_t* rxbuff_a, uint16_t* len_a, uint16_t*
     offset = le16toh(h->offset);
 
     if ((!len) || (len > MAX_PAYLOAD_SIZE) || (offset != sizeof(struct esp_payload_header))) {
-
         /* Free up buffer, as one of following -
          * 1. no payload to process
          * 2. input packet size > driver capacity
@@ -386,12 +386,14 @@ static uint8_t* uart_scratch_buf = NULL;
 
 static void h_uart_read_task(void const* pvParameters) {
     struct esp_payload_header* header = NULL;
-    uint16_t                   len = 0, offset = 0;
+    uint16_t len = 0;
+    uint16_t offset = 0;
 #if HOSTED_UART_CHECKSUM
-    uint16_t rx_checksum = 0, checksum = 0;
+    uint16_t rx_checksum = 0;
+    uint16_t checksum = 0;
 #endif
-    int      bytes_read;
-    int      total_len;
+    int bytes_read;
+    int total_len;
     uint8_t* rxbuff = NULL;
 
     // wait for transport to be in ready
@@ -411,7 +413,7 @@ static void h_uart_read_task(void const* pvParameters) {
 
     header = (struct esp_payload_header*)uart_scratch_buf;
 
-    while (1) {
+    while (true) {
         // get the header
         bytes_read = g_h.funcs->_h_uart_read(uart_handle, uart_scratch_buf, sizeof(struct esp_payload_header));
         ESP_LOGD(TAG, "Read %d bytes (header)", bytes_read);
@@ -516,9 +518,9 @@ void transport_init_internal(void) {
 int esp_hosted_tx(uint8_t iface_type, uint8_t iface_num, uint8_t* wbuffer, uint16_t wlen, uint8_t buff_zcopy,
                   void (*free_wbuf_fun)(void* ptr)) {
     interface_buffer_handle_t buf_handle = {0};
-    void (*free_func)(void* ptr)         = NULL;
-    uint8_t pkt_prio                     = PRIO_Q_OTHERS;
-    uint8_t transport_up                 = is_transport_tx_ready();
+    void (*free_func)(void* ptr) = NULL;
+    uint8_t pkt_prio = PRIO_Q_OTHERS;
+    uint8_t transport_up = is_transport_tx_ready();
 
     if (free_wbuf_fun) {
         free_func = free_wbuf_fun;
