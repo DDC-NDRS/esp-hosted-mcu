@@ -125,11 +125,11 @@ static SemaphoreHandle_t spi_sema;
 #endif
 
 static interface_handle_t* esp_spi_init(void);
-static int32_t             esp_spi_write(interface_handle_t* handle, interface_buffer_handle_t* buf_handle);
-static int                 esp_spi_read(interface_handle_t* if_handle, interface_buffer_handle_t* buf_handle);
-static esp_err_t           esp_spi_reset(interface_handle_t* handle);
-static void                esp_spi_deinit(interface_handle_t* handle);
-static void                esp_spi_read_done(void* handle);
+static int32_t esp_spi_write(interface_handle_t* handle, interface_buffer_handle_t* buf_handle);
+static int esp_spi_read(interface_handle_t* if_handle, interface_buffer_handle_t* buf_handle);
+static esp_err_t esp_spi_reset(interface_handle_t* handle);
+static void esp_spi_deinit(interface_handle_t* handle);
+static void esp_spi_read_done(void* handle);
 #if !DUMMY_TRANS_DESIGN
 static void queue_next_transaction(void);
 #endif
@@ -151,10 +151,12 @@ static uint8_t dummy_queued = pdFALSE;
 #endif
 
 static inline void spi_mempool_create() {
-    buf_mp_tx_g = hosted_mempool_create(NULL, 0, SPI_MEMPOOL_NUM_BLOCKS, SPI_BUFFER_SIZE);
+    buf_mp_tx_g = hosted_mempool_create(NULL, 0,
+                                        SPI_MEMPOOL_NUM_BLOCKS, SPI_BUFFER_SIZE);
     /* re-use the mempool, as same size, can be seperate, if needed */
     buf_mp_rx_g = buf_mp_tx_g;
-    trans_mp_g  = hosted_mempool_create(NULL, 0, SPI_MEMPOOL_NUM_BLOCKS, sizeof(spi_slave_transaction_t));
+    trans_mp_g  = hosted_mempool_create(NULL, 0,
+                                        SPI_MEMPOOL_NUM_BLOCKS, sizeof(spi_slave_transaction_t));
 #if CONFIG_ESP_CACHE_MALLOC
     assert(buf_mp_tx_g);
     assert(buf_mp_rx_g);
@@ -242,13 +244,13 @@ static inline int find_wifi_tx_throttling_to_be_set(void) {
 }
 
 void generate_startup_event(uint8_t cap, uint32_t ext_cap) {
-    struct esp_payload_header* header     = NULL;
-    interface_buffer_handle_t  buf_handle = {0};
-    struct esp_priv_event*     event      = NULL;
-    uint8_t*                   pos        = NULL;
-    uint16_t                   len        = 0;
-    uint8_t                    raw_tp_cap = 0;
-    uint32_t                   total_len  = 0;
+    struct esp_payload_header* header = NULL;
+    interface_buffer_handle_t buf_handle = {0};
+    struct esp_priv_event* event = NULL;
+    uint8_t* pos = NULL;
+    uint16_t len = 0;
+    uint8_t raw_tp_cap = 0;
+    uint32_t total_len = 0;
 
     buf_handle.payload = spi_buffer_tx_alloc(MEMSET_REQUIRED);
 
@@ -376,7 +378,8 @@ static inline int is_valid_trans_buffer(uint8_t* trans_buf) {
     len    = le16toh(header->len);
     offset = le16toh(header->offset);
 
-    if (!len || (len > SPI_BUFFER_SIZE) || (offset != sizeof(struct esp_payload_header))) {
+    if (!len || (len > SPI_BUFFER_SIZE) ||
+        (offset != sizeof(struct esp_payload_header))) {
         return pdFALSE;
     }
 
@@ -409,13 +412,13 @@ static void IRAM_ATTR spi_post_trans_cb(spi_slave_transaction_t* trans) {
 
 static uint8_t* get_next_tx_buffer(uint32_t* len) {
     interface_buffer_handle_t  buf_handle = {0};
-    esp_err_t                  ret        = ESP_OK;
-    uint8_t*                   sendbuf    = NULL;
+    esp_err_t ret = ESP_OK;
+    uint8_t* sendbuf = NULL;
     struct esp_payload_header* header     = NULL;
 
     /* Get or create new tx_buffer
-     *	1. Check if SPI TX queue has pending buffers. Return if valid buffer is obtained.
-     *	2. Create a new empty tx buffer and return */
+     *    1. Check if SPI TX queue has pending buffers. Return if valid buffer is obtained.
+     *    2. Create a new empty tx buffer and return */
 
     /* Get buffer from SPI Tx queue */
     ret = xSemaphoreTake(spi_tx_sem, 0);
@@ -516,8 +519,8 @@ static int process_spi_rx(interface_buffer_handle_t* buf_handle) {
     checksum = compute_checksum(buf_handle->payload, len + offset);
 
     if (checksum != rx_checksum) {
-        ESP_LOGE(TAG, "%s: cal_chksum[%u] != exp_chksum[%u], drop len[%u] offset[%u]", __func__, checksum, rx_checksum,
-                 len, offset);
+        ESP_LOGE(TAG, "%s: cal_chksum[%u] != exp_chksum[%u], drop len[%u] offset[%u]",
+                 __func__, checksum, rx_checksum, len, offset);
         return -1;
     }
 #endif
@@ -639,8 +642,8 @@ static void queue_dummy_transaction() {
 #else
 static void queue_next_transaction(void) {
     spi_slave_transaction_t* spi_trans = NULL;
-    uint32_t                 len       = 0;
-    uint8_t*                 tx_buffer = get_next_tx_buffer(&len);
+    uint32_t len = 0;
+    uint8_t* tx_buffer = get_next_tx_buffer(&len);
     if (!tx_buffer) {
         /* Queue next transaction failed */
         ESP_LOGE(TAG, "Failed to queue new transaction\r\n");
@@ -679,7 +682,8 @@ static void spi_transaction_post_process_task(void* pvParameters) {
         /* Await transmission result, after any kind of transmission a new packet
          * (dummy or real) must be placed in SPI slave
          */
-        ESP_ERROR_CHECK(spi_slave_get_trans_result(ESP_SPI_CONTROLLER, &spi_trans, portMAX_DELAY));
+        ESP_ERROR_CHECK(spi_slave_get_trans_result(ESP_SPI_CONTROLLER, &spi_trans,
+                        portMAX_DELAY));
 #if DUMMY_TRANS_DESIGN
         if (spi_trans->tx_buffer) {
             header = (struct esp_payload_header*)spi_trans->tx_buffer;
@@ -776,7 +780,10 @@ static void register_hs_disable_pin(uint32_t gpio_num) {
         gpio_reset_pin(gpio_num);
 
         gpio_config_t slave_disable_hs_pin_conf = {
-            .intr_type = GPIO_INTR_DISABLE, .mode = GPIO_MODE_INPUT, .pin_bit_mask = (1ULL << gpio_num)};
+            .intr_type = GPIO_INTR_DISABLE,
+            .mode = GPIO_MODE_INPUT,
+            .pin_bit_mask = (1ULL << gpio_num)
+        };
         slave_disable_hs_pin_conf.pull_up_en = 1;
         gpio_config(&slave_disable_hs_pin_conf);
         gpio_set_intr_type(gpio_num, H_CS_INTR_TO_CLEAR_HS);
@@ -798,29 +805,37 @@ static interface_handle_t* esp_spi_init(void) {
         .quadhd_io_num   = -1,
         .max_transfer_sz = SPI_BUFFER_SIZE,
 #if 0
-		/*
-		 * Moving ESP32 SPI slave interrupts in flash, Keeping it in IRAM gives crash,
-		 * While performing flash erase operation.
-		 */
-		.intr_flags=ESP_INTR_FLAG_IRAM
+        /*
+         * Moving ESP32 SPI slave interrupts in flash, Keeping it in IRAM gives crash,
+         * While performing flash erase operation.
+         */
+        .intr_flags=ESP_INTR_FLAG_IRAM
 #endif
     };
 
     /* Configuration for the SPI slave interface */
-    spi_slave_interface_config_t slvcfg = {.mode          = ESP_SPI_MODE,
-                                           .spics_io_num  = GPIO_CS,
-                                           .queue_size    = SPI_QUEUE_SIZE,
-                                           .flags         = 0,
-                                           .post_setup_cb = spi_post_setup_cb,
-                                           .post_trans_cb = spi_post_trans_cb};
+    spi_slave_interface_config_t slvcfg = {
+        .mode          = ESP_SPI_MODE,
+        .spics_io_num  = GPIO_CS,
+        .queue_size    = SPI_QUEUE_SIZE,
+        .flags         = 0,
+        .post_setup_cb = spi_post_setup_cb,
+        .post_trans_cb = spi_post_trans_cb
+    };
 
     /* Configuration for the handshake line */
     gpio_config_t io_conf = {
-        .intr_type = GPIO_INTR_DISABLE, .mode = GPIO_MODE_OUTPUT, .pin_bit_mask = GPIO_MASK_HANDSHAKE};
+        .intr_type = GPIO_INTR_DISABLE,
+        .mode = GPIO_MODE_OUTPUT,
+        .pin_bit_mask = GPIO_MASK_HANDSHAKE
+    };
 
     /* Configuration for data_ready line */
     gpio_config_t io_data_ready_conf = {
-        .intr_type = GPIO_INTR_DISABLE, .mode = GPIO_MODE_OUTPUT, .pin_bit_mask = GPIO_MASK_DATA_READY};
+        .intr_type = GPIO_INTR_DISABLE,
+        .mode = GPIO_MODE_OUTPUT,
+        .pin_bit_mask = GPIO_MASK_DATA_READY
+    };
 
     spi_mempool_create();
 
@@ -839,9 +854,10 @@ static interface_handle_t* esp_spi_init(void) {
     gpio_set_pull_mode(GPIO_SCLK, GPIO_PULLUP_ONLY);
     gpio_set_pull_mode(GPIO_CS, GPIO_PULLUP_ONLY);
 
-    ESP_LOGI(TAG, "SPI Ctrl:%u mode: %u, Freq:ConfigAtHost\nGPIOs: MOSI: %u, MISO: %u, CS: %u, CLK: %u HS: %u DR: %u\n",
-             ESP_SPI_CONTROLLER, slvcfg.mode, GPIO_MOSI, GPIO_MISO, GPIO_CS, GPIO_SCLK, GPIO_HANDSHAKE,
-             GPIO_DATA_READY);
+    ESP_LOGI(TAG, "SPI Ctrl:%u mode: %u, Freq:ConfigAtHost\nGPIOs: CLK:%u MOSI:%u MISO:%u CS:%u HS:%u DR:%u\n",
+             ESP_SPI_CONTROLLER, slvcfg.mode,
+             GPIO_SCLK, GPIO_MOSI, GPIO_MISO, GPIO_CS,
+             GPIO_HANDSHAKE, GPIO_DATA_READY);
 
     ESP_LOGI(TAG, "Hosted SPI queue size: Tx:%u Rx:%u", SPI_TX_QUEUE_SIZE, SPI_RX_QUEUE_SIZE);
     register_hs_disable_pin(GPIO_CS);
@@ -891,11 +907,13 @@ static interface_handle_t* esp_spi_init(void) {
     assert(spi_sema != NULL);
     xSemaphoreGive(spi_sema);
 
-    assert(xTaskCreate(spi_transaction_tx_task, "spi_tx_task", CONFIG_ESP_DEFAULT_TASK_STACK_SIZE, NULL,
+    assert(xTaskCreate(spi_transaction_tx_task, "spi_tx_task",
+                       CONFIG_ESP_DEFAULT_TASK_STACK_SIZE, NULL,
                        CONFIG_ESP_DEFAULT_TASK_PRIO + 1, NULL) == pdTRUE);
 #endif
-    assert(xTaskCreate(spi_transaction_post_process_task, "spi_post_process_task", CONFIG_ESP_DEFAULT_TASK_STACK_SIZE,
-                       NULL, CONFIG_ESP_DEFAULT_TASK_PRIO, NULL) == pdTRUE);
+    assert(xTaskCreate(spi_transaction_post_process_task, "spi_post_process_task",
+                       CONFIG_ESP_DEFAULT_TASK_STACK_SIZE, NULL,
+                       CONFIG_ESP_DEFAULT_TASK_PRIO, NULL) == pdTRUE);
 
     usleep(500);
 
@@ -903,8 +921,8 @@ static interface_handle_t* esp_spi_init(void) {
 }
 
 static int32_t esp_spi_write(interface_handle_t* handle, interface_buffer_handle_t* buf_handle) {
-    int32_t                    total_len     = 0;
-    uint16_t                   offset        = 0;
+    int32_t total_len = 0;
+    uint16_t offset = 0;
     struct esp_payload_header* header        = NULL;
     interface_buffer_handle_t  tx_buf_handle = {0};
 
@@ -960,7 +978,8 @@ static int32_t esp_spi_write(interface_handle_t* handle, interface_buffer_handle
     memcpy(tx_buf_handle.payload + offset, buf_handle->payload, buf_handle->payload_len);
 
 #if CONFIG_ESP_SPI_CHECKSUM
-    header->checksum = htole16(compute_checksum(tx_buf_handle.payload, offset + buf_handle->payload_len));
+    header->checksum = htole16(compute_checksum(tx_buf_handle.payload,
+                                                offset + buf_handle->payload_len));
 #endif
 
     if (header->if_type == ESP_SERIAL_IF) {

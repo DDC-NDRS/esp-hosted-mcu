@@ -74,7 +74,7 @@ static void reset_slave(void) {
     g_h.funcs->_h_write_gpio(reset_pin.port, reset_pin.pin, H_RESET_VAL_ACTIVE);
 
     /* stop spi transactions short time to avoid slave sync issues */
-    g_h.funcs->_h_sleep(1);
+    g_h.funcs->_h_msleep(1500);
 }
 
 static void transport_driver_event_handler(uint8_t event) {
@@ -167,25 +167,23 @@ esp_err_t transport_drv_remove_channel(transport_channel_t* channel) {
 }
 
 #if 0
-esp_err_t transport_drv_tx(void *h, void *buffer, size_t len)
-{
-	if (!h) {
-		esp_wifi_internal_free_rx_buffer(buffer);
-		return ESP_FAIL;
-	}
+esp_err_t transport_drv_tx(void *h, void *buffer, size_t len) {
+    if (!h) {
+        esp_wifi_internal_free_rx_buffer(buffer);
+        return ESP_FAIL;
+    }
 
-	/* Buffer will be freed always in the called function */
-	return esp_hosted_tx(h->if_type, 0, buffer, len, H_BUFF_NO_ZEROCOPY, esp_wifi_internal_free_rx_buffer);
+    /* Buffer will be freed always in the called function */
+    return esp_hosted_tx(h->if_type, 0, buffer, len, H_BUFF_NO_ZEROCOPY, esp_wifi_internal_free_rx_buffer);
 
 }
 #endif
 
 #if 0
-static esp_err_t transport_drv_sta_tx(void *h, void *buffer, transport_free_cb_t free_cb, size_t len)
-{
-	ESP_LOGI(TAG, "%s", __func__);
-	assert(h && h==chan_arr[ESP_STA_IF]->api_chan);
-	return esp_hosted_tx(ESP_STA_IF, 0, buffer, len, H_BUFF_NO_ZEROCOPY, free_cb);
+static esp_err_t transport_drv_sta_tx(void *h, void *buffer, transport_free_cb_t free_cb, size_t len) {
+    ESP_LOGI(TAG, "%s", __func__);
+    assert(h && h==chan_arr[ESP_STA_IF]->api_chan);
+    return esp_hosted_tx(ESP_STA_IF, 0, buffer, len, H_BUFF_NO_ZEROCOPY, free_cb);
 }
 #endif
 
@@ -254,7 +252,8 @@ esp_err_t transport_drv_serial_tx(void* h, void* buffer, size_t len) {
     return esp_hosted_tx(ESP_SERIAL_IF, 0, buffer, len, H_BUFF_NO_ZEROCOPY, transport_serial_free_cb);
 }
 
-transport_channel_t* transport_drv_add_channel(void* api_chan, esp_hosted_if_type_t if_type, uint8_t secure,
+transport_channel_t* transport_drv_add_channel(void* api_chan,
+                                               esp_hosted_if_type_t if_type, uint8_t secure,
                                                transport_channel_tx_fn_t* tx, transport_channel_rx_fn_t const rx) {
     transport_channel_t* channel = NULL;
 
@@ -307,7 +306,8 @@ transport_channel_t* transport_drv_add_channel(void* api_chan, esp_hosted_if_typ
     assert(channel->memp);
 #endif
 
-    ESP_LOGI(TAG, "Add ESP-Hosted channel IF[%u]: S[%u] Tx[%p] Rx[%p]", if_type, secure, *tx, rx);
+    ESP_LOGI(TAG, "Add ESP-Hosted channel IF[%u]: S[%u] Tx[%p] Rx[%p]",
+             if_type, secure, *tx, rx);
 
     return channel;
 }
@@ -339,15 +339,19 @@ void print_capabilities(uint32_t cap) {
     if (cap & ESP_WLAN_SDIO_SUPPORT) {
         ESP_LOGI(TAG, "\t * WLAN");
     }
+
     if (cap & ESP_BT_UART_SUPPORT) {
         ESP_LOGI(TAG, "\t   - HCI over UART");
     }
+
     if (cap & ESP_BT_SDIO_SUPPORT) {
         ESP_LOGI(TAG, "\t   - HCI over SDIO");
     }
+
     if (cap & ESP_BT_SPI_SUPPORT) {
         ESP_LOGI(TAG, "\t   - HCI over SPI");
     }
+
     if ((cap & ESP_BLE_ONLY_SUPPORT) && (cap & ESP_BR_EDR_ONLY_SUPPORT)) {
         ESP_LOGI(TAG, "\t   - BT/BLE dual mode");
     }
@@ -370,12 +374,15 @@ static void print_ext_capabilities(uint8_t* ptr) {
     if (cap & ESP_SPI_HD_INTERFACE_SUPPORT_2_DATA_LINES) {
         ESP_LOGI(TAG, "\t * SPI HD 2 data lines interface");
     }
+
     if (cap & ESP_SPI_HD_INTERFACE_SUPPORT_4_DATA_LINES) {
         ESP_LOGI(TAG, "\t * SPI HD 4 data lines interface");
     }
+
     if (cap & ESP_WLAN_SUPPORT) {
         ESP_LOGI(TAG, "\t * WLAN");
     }
+
     if (cap & ESP_BT_INTERFACE_SUPPORT) {
         ESP_LOGI(TAG, "\t * BT/BLE");
     }
@@ -383,6 +390,7 @@ static void print_ext_capabilities(uint8_t* ptr) {
     if (cap & ESP_WLAN_UART_SUPPORT) {
         ESP_LOGI(TAG, "\t * WLAN over UART");
     }
+
     if (cap & ESP_BT_VHCI_UART_SUPPORT) {
         ESP_LOGI(TAG, "\t * BT over UART (VHCI)");
     }
@@ -488,13 +496,13 @@ static void verify_host_config_for_slave(uint8_t chip_type) {
     }
 }
 
-esp_err_t send_slave_config(uint8_t host_cap, uint8_t firmware_chip_id, uint8_t raw_tp_direction, uint8_t low_thr_thesh,
-                            uint8_t high_thr_thesh) {
+esp_err_t send_slave_config(uint8_t host_cap, uint8_t firmware_chip_id,
+                            uint8_t raw_tp_direction, uint8_t low_thr_thesh, uint8_t high_thr_thesh) {
 #define LENGTH_1_BYTE 1
-    struct esp_priv_event* event   = NULL;
-    uint8_t*               pos     = NULL;
-    uint16_t               len     = 0;
-    uint8_t*               sendbuf = NULL;
+    struct esp_priv_event* event = NULL;
+    uint8_t* pos = NULL;
+    uint16_t len = 0;
+    uint8_t* sendbuf = NULL;
 
     sendbuf = g_h.funcs->_h_malloc(512);
     assert(sendbuf);
@@ -634,7 +642,7 @@ int process_init_event(uint8_t* evt_buf, uint16_t len) {
         len_left -= (tag_len + 2);
     }
 
-    if ((chip_type != ESP_PRIV_FIRMWARE_CHIP_ESP32) && (chip_type != ESP_PRIV_FIRMWARE_CHIP_ESP32S2) &&
+    if ((chip_type != ESP_PRIV_FIRMWARE_CHIP_ESP32)   && (chip_type != ESP_PRIV_FIRMWARE_CHIP_ESP32S2) &&
         (chip_type != ESP_PRIV_FIRMWARE_CHIP_ESP32S3) && (chip_type != ESP_PRIV_FIRMWARE_CHIP_ESP32C2) &&
         (chip_type != ESP_PRIV_FIRMWARE_CHIP_ESP32C3) && (chip_type != ESP_PRIV_FIRMWARE_CHIP_ESP32C6) &&
         (chip_type != ESP_PRIV_FIRMWARE_CHIP_ESP32C5)) {
@@ -679,7 +687,8 @@ int process_init_event(uint8_t* evt_buf, uint16_t len) {
     }
 
     transport_driver_event_handler(TRANSPORT_TX_ACTIVE);
-    return send_slave_config(0, chip_type, raw_tp_config, H_WIFI_TX_DATA_THROTTLE_LOW_THRESHOLD,
+    return send_slave_config(0, chip_type, raw_tp_config,
+                             H_WIFI_TX_DATA_THROTTLE_LOW_THRESHOLD,
                              H_WIFI_TX_DATA_THROTTLE_HIGH_THRESHOLD);
 }
 

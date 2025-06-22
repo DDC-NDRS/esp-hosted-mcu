@@ -27,6 +27,26 @@
 #include "esp_hosted_bitmasks.h"
 #include "esp_idf_version.h"
 
+/* ESP-IDF 5.5.0: renamed reserved fields to reserved1/reserved2 */
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+#define H_WIFI_NEW_RESERVED_FIELD_NAMES 1
+#define H_PRESENT_IN_ESP_IDF_5_5_0      1
+#else
+#define H_WIFI_NEW_RESERVED_FIELD_NAMES 0
+#define H_PRESENT_IN_ESP_IDF_5_5_0      0
+#endif
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
+#define H_PRESENT_IN_ESP_IDF_5_4_0      1
+#else
+#define H_PRESENT_IN_ESP_IDF_5_4_0      0
+#endif
+
+/* Slave-side: Always support reserved field decoding for maximum compatibility
+ * The host may or may not have CONFIG_ESP_HOSTED_DECODE_WIFI_RESERVED_FIELD enabled
+ */
+#define H_DECODE_WIFI_RESERVED_FIELD 1
+
 #include "coprocessor_fw_version.h"
 
 #define MAC_STR_LEN     17
@@ -223,16 +243,16 @@ typedef struct esp_rpc_cmd {
     esp_err_t (*command_handler)(Rpc* req, Rpc* resp, void* priv_data);
 } esp_rpc_req_t;
 
-static char const*   TAG = "slave_ctrl";
+static char const* TAG = "slave_ctrl";
 static TimerHandle_t handle_heartbeat_task;
-static uint32_t      hb_num;
+static uint32_t hb_num;
 
 /* FreeRTOS event group to signal when we are connected*/
 static esp_event_handler_instance_t instance_any_id;
 
 static esp_ota_handle_t handle;
-esp_partition_t const*  update_partition = NULL;
-static int              ota_msg          = 0;
+esp_partition_t const* update_partition = NULL;
+static int ota_msg = 0;
 
 extern esp_err_t wlan_sta_rx_callback(void* buffer, uint16_t len, void* eb);
 extern esp_err_t wlan_ap_rx_callback(void* buffer, uint16_t len, void* eb);
@@ -250,7 +270,8 @@ void vTimerCallback(TimerHandle_t xTimer) {
 static esp_err_t req_wifi_get_mac(Rpc* req, Rpc* resp, void* priv_data) {
     uint8_t mac[BSSID_BYTES_SIZE] = {0};
 
-    RPC_TEMPLATE_SIMPLE(RpcRespGetMacAddress, resp_get_mac_address, RpcReqGetMacAddress, req_get_mac_address,
+    RPC_TEMPLATE_SIMPLE(RpcRespGetMacAddress, resp_get_mac_address,
+                        RpcReqGetMacAddress, req_get_mac_address,
                         rpc__resp__get_mac_address__init);
 
     RPC_RET_FAIL_IF(esp_wifi_get_mac(req->req_get_mac_address->mode, mac));
@@ -268,7 +289,8 @@ static esp_err_t req_wifi_get_mac(Rpc* req, Rpc* resp, void* priv_data) {
 static esp_err_t req_wifi_get_mode(Rpc* req, Rpc* resp, void* priv_data) {
     wifi_mode_t mode = 0;
 
-    RPC_TEMPLATE_SIMPLE(RpcRespGetMode, resp_get_wifi_mode, RpcReqGetMode, req_get_wifi_mode,
+    RPC_TEMPLATE_SIMPLE(RpcRespGetMode, resp_get_wifi_mode,
+                        RpcReqGetMode, req_get_wifi_mode,
                         rpc__resp__get_mode__init);
 
     RPC_RET_FAIL_IF(esp_wifi_get_mode(&mode));
@@ -282,7 +304,9 @@ static esp_err_t req_wifi_get_mode(Rpc* req, Rpc* resp, void* priv_data) {
 static esp_err_t req_wifi_set_mode(Rpc* req, Rpc* resp, void* priv_data) {
     wifi_mode_t num = 0;
 
-    RPC_TEMPLATE(RpcRespSetMode, resp_set_wifi_mode, RpcReqSetMode, req_set_wifi_mode, rpc__resp__set_mode__init);
+    RPC_TEMPLATE(RpcRespSetMode, resp_set_wifi_mode,
+                 RpcReqSetMode, req_set_wifi_mode,
+                 rpc__resp__set_mode__init);
 
     num = req_payload->mode;
     RPC_RET_FAIL_IF(esp_wifi_set_mode(num));
@@ -294,7 +318,8 @@ static esp_err_t req_wifi_set_mode(Rpc* req, Rpc* resp, void* priv_data) {
 static esp_err_t req_wifi_set_mac(Rpc* req, Rpc* resp, void* priv_data) {
     uint8_t* mac = NULL;
 
-    RPC_TEMPLATE(RpcRespSetMacAddress, resp_set_mac_address, RpcReqSetMacAddress, req_set_mac_address,
+    RPC_TEMPLATE(RpcRespSetMacAddress, resp_set_mac_address,
+                 RpcReqSetMacAddress, req_set_mac_address,
                  rpc__resp__set_mac_address__init);
 
     if (!req_payload->mac.data || (req_payload->mac.len != BSSID_BYTES_SIZE)) {
@@ -313,7 +338,9 @@ err:
 
 /* Function sets power save mode */
 static esp_err_t req_wifi_set_ps(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE(RpcRespSetPs, resp_wifi_set_ps, RpcReqSetPs, req_wifi_set_ps, rpc__resp__set_ps__init);
+    RPC_TEMPLATE(RpcRespSetPs, resp_wifi_set_ps,
+                 RpcReqSetPs, req_wifi_set_ps,
+                 rpc__resp__set_ps__init);
     RPC_RET_FAIL_IF(esp_wifi_set_ps(req_payload->type));
     return ESP_OK;
 }
@@ -322,7 +349,9 @@ static esp_err_t req_wifi_set_ps(Rpc* req, Rpc* resp, void* priv_data) {
 static esp_err_t req_wifi_get_ps(Rpc* req, Rpc* resp, void* priv_data) {
     wifi_ps_type_t ps_type = 0;
 
-    RPC_TEMPLATE_SIMPLE(RpcRespGetPs, resp_wifi_get_ps, RpcReqGetPs, req_wifi_get_ps, rpc__resp__get_ps__init);
+    RPC_TEMPLATE_SIMPLE(RpcRespGetPs, resp_wifi_get_ps,
+                        RpcReqGetPs, req_wifi_get_ps,
+                        rpc__resp__get_ps__init);
     RPC_RET_FAIL_IF(esp_wifi_get_ps(&ps_type));
     resp_payload->type = ps_type;
     return ESP_OK;
@@ -466,90 +495,88 @@ err:
 
 #if 0
 /* Function vendor specific ie */
-static esp_err_t req_set_softap_vender_specific_ie_handler (Rpc *req,
-		Rpc *resp, void *priv_data)
-{
-	esp_err_t ret = ESP_OK;
-	RpcRespSetSoftAPVendorSpecificIE *resp_payload = NULL;
-	RpcReqSetSoftAPVendorSpecificIE *p_vsi = req->req_set_softap_vendor_specific_ie;
-	RpcReqVendorIEData *p_vid = NULL;
-	vendor_ie_data_t *v_data = NULL;
+static esp_err_t req_set_softap_vender_specific_ie_handler(Rpc* req,
+                                                           Rpc* resp, void* priv_data) {
+    esp_err_t ret = ESP_OK;
+    RpcRespSetSoftAPVendorSpecificIE *resp_payload = NULL;
+    RpcReqSetSoftAPVendorSpecificIE *p_vsi = req->req_set_softap_vendor_specific_ie;
+    RpcReqVendorIEData *p_vid = NULL;
+    vendor_ie_data_t *v_data = NULL;
 
-	if (!req || !resp || !p_vsi) {
-		ESP_LOGE(TAG, "Invalid parameters");
-		return ESP_FAIL;
-	}
-	p_vid = p_vsi->vendor_ie_data;
+    if (!req || !resp || !p_vsi) {
+        ESP_LOGE(TAG, "Invalid parameters");
+        return ESP_FAIL;
+    }
+    p_vid = p_vsi->vendor_ie_data;
 
-	if (!p_vsi->enable) {
+    if (!p_vsi->enable) {
+        ESP_LOGI(TAG,"Disable softap vendor IE\n");
+    }
+    else {
+        ESP_LOGI(TAG,"Enable softap vendor IE\n");
 
-		ESP_LOGI(TAG,"Disable softap vendor IE\n");
+        if (!p_vid ||
+            !p_vid->payload.len ||
+            !p_vid->payload.data) {
+            ESP_LOGE(TAG, "Invalid parameters");
+            return ESP_FAIL;
+        }
 
-	} else {
+        v_data = (vendor_ie_data_t*)calloc(1,sizeof(vendor_ie_data_t)+p_vid->payload.len);
+        if (!v_data) {
+            ESP_LOGE(TAG, "Malloc failed at %s:%u\n", __func__, __LINE__);
+            return ESP_FAIL;
+        }
 
-		ESP_LOGI(TAG,"Enable softap vendor IE\n");
+        v_data->length = p_vid->length;
+        v_data->element_id = p_vid->element_id;
+        v_data->vendor_oui_type = p_vid->vendor_oui_type;
 
-		if (!p_vid ||
-			!p_vid->payload.len ||
-			!p_vid->payload.data) {
-			ESP_LOGE(TAG, "Invalid parameters");
-			return ESP_FAIL;
-		}
+        memcpy(v_data->vendor_oui, p_vid->vendor_oui.data, VENDOR_OUI_BUF);
 
-		v_data = (vendor_ie_data_t*)calloc(1,sizeof(vendor_ie_data_t)+p_vid->payload.len);
-		if (!v_data) {
-			ESP_LOGE(TAG, "Malloc failed at %s:%u\n", __func__, __LINE__);
-			return ESP_FAIL;
-		}
-
-		v_data->length = p_vid->length;
-		v_data->element_id = p_vid->element_id;
-		v_data->vendor_oui_type = p_vid->vendor_oui_type;
-
-		memcpy(v_data->vendor_oui, p_vid->vendor_oui.data, VENDOR_OUI_BUF);
-
-		if (p_vid->payload.len && p_vid->payload.data) {
-			memcpy(v_data->payload, p_vid->payload.data, p_vid->payload.len);
-		}
-	}
+        if (p_vid->payload.len && p_vid->payload.data) {
+            memcpy(v_data->payload, p_vid->payload.data, p_vid->payload.len);
+        }
+    }
 
 
-	resp_payload = (RpcRespSetSoftAPVendorSpecificIE *)
-		calloc(1,sizeof(RpcRespSetSoftAPVendorSpecificIE));
-	if (!resp_payload) {
-		ESP_LOGE(TAG,"Failed to allocate memory");
-		if (v_data)
-			mem_free(v_data);
-		return ESP_ERR_NO_MEM;
-	}
+    resp_payload = (RpcRespSetSoftAPVendorSpecificIE*)
+        calloc(1,sizeof(RpcRespSetSoftAPVendorSpecificIE));
+    if (!resp_payload) {
+        ESP_LOGE(TAG,"Failed to allocate memory");
+        if (v_data)
+            mem_free(v_data);
+        return ESP_ERR_NO_MEM;
+    }
 
-	rpc__resp__set_soft_apvendor_specific_ie__init(resp_payload);
-	resp->payload_case = RPC__PAYLOAD_RESP_SET_SOFTAP_VENDOR_SPECIFIC_IE;
-	resp->resp_set_softap_vendor_specific_ie = resp_payload;
+    rpc__resp__set_soft_apvendor_specific_ie__init(resp_payload);
+    resp->payload_case = RPC__PAYLOAD_RESP_SET_SOFTAP_VENDOR_SPECIFIC_IE;
+    resp->resp_set_softap_vendor_specific_ie = resp_payload;
 
 
-	ret = esp_wifi_set_vendor_ie(p_vsi->enable,
-			p_vsi->type,
-			p_vsi->idx,
-			v_data);
+    ret = esp_wifi_set_vendor_ie(p_vsi->enable,
+                                 p_vsi->type,
+                                 p_vsi->idx,
+                                 v_data);
 
-	if (v_data)
-		mem_free(v_data);
+    if (v_data)
+        mem_free(v_data);
 
-	if (ret != ESP_OK) {
-		ESP_LOGE(TAG, "Failed to set vendor information element %d \n", ret);
-		resp_payload->resp = FAILURE;
-		return ESP_OK;
-	}
-	resp_payload->resp = SUCCESS;
-	return ESP_OK;
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to set vendor information element %d \n", ret);
+        resp_payload->resp = FAILURE;
+        return ESP_OK;
+    }
+    resp_payload->resp = SUCCESS;
+    return ESP_OK;
 }
 #endif
 
 /* Function set wifi maximum TX power */
 static esp_err_t req_wifi_set_max_tx_power(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE(RpcRespWifiSetMaxTxPower, resp_set_wifi_max_tx_power, RpcReqWifiSetMaxTxPower,
-                 req_set_wifi_max_tx_power, rpc__resp__wifi_set_max_tx_power__init);
+    RPC_TEMPLATE(RpcRespWifiSetMaxTxPower, resp_set_wifi_max_tx_power,
+                 RpcReqWifiSetMaxTxPower, req_set_wifi_max_tx_power,
+                 rpc__resp__wifi_set_max_tx_power__init);
     RPC_RET_FAIL_IF(esp_wifi_set_max_tx_power(req_payload->power));
     return ESP_OK;
 }
@@ -558,8 +585,9 @@ static esp_err_t req_wifi_set_max_tx_power(Rpc* req, Rpc* resp, void* priv_data)
 static esp_err_t req_wifi_get_max_tx_power(Rpc* req, Rpc* resp, void* priv_data) {
     int8_t power = 0;
 
-    RPC_TEMPLATE_SIMPLE(RpcRespWifiGetMaxTxPower, resp_get_wifi_max_tx_power, RpcReqWifiGetMaxTxPower,
-                        req_get_wifi_max_tx_power, rpc__resp__wifi_get_max_tx_power__init);
+    RPC_TEMPLATE_SIMPLE(RpcRespWifiGetMaxTxPower, resp_get_wifi_max_tx_power,
+                        RpcReqWifiGetMaxTxPower, req_get_wifi_max_tx_power,
+                        rpc__resp__wifi_get_max_tx_power__init);
     RPC_RET_FAIL_IF(esp_wifi_get_max_tx_power(&power));
     resp_payload->power = power;
     return ESP_OK;
@@ -571,7 +599,8 @@ static void heartbeat_timer_cb(TimerHandle_t xTimer) {
 }
 
 static void stop_heartbeat(void) {
-    if (handle_heartbeat_task && xTimerIsTimerActive(handle_heartbeat_task)) {
+    if (handle_heartbeat_task &&
+        xTimerIsTimerActive(handle_heartbeat_task)) {
         ESP_LOGI(TAG, "Stopping HB timer");
         xTimerStop(handle_heartbeat_task, portMAX_DELAY);
         xTimerDelete(handle_heartbeat_task, portMAX_DELAY);
@@ -611,6 +640,7 @@ static esp_err_t configure_heartbeat(bool enable, int hb_duration) {
         if (duration < MIN_HEARTBEAT_INTERVAL) {
             duration = MIN_HEARTBEAT_INTERVAL;
         }
+
         if (duration > MAX_HEARTBEAT_INTERVAL) {
             duration = MAX_HEARTBEAT_INTERVAL;
         }
@@ -683,7 +713,9 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
 static esp_err_t req_wifi_init(Rpc* req, Rpc* resp, void* priv_data) {
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 
-    RPC_TEMPLATE(RpcRespWifiInit, resp_wifi_init, RpcReqWifiInit, req_wifi_init, rpc__resp__wifi_init__init);
+    RPC_TEMPLATE(RpcRespWifiInit, resp_wifi_init,
+                 RpcReqWifiInit, req_wifi_init,
+                 rpc__resp__wifi_init__init);
 
     RPC_RET_FAIL_IF(!req_payload->cfg);
     cfg.static_rx_buf_num      = req_payload->cfg->static_rx_buf_num;
@@ -716,7 +748,8 @@ static esp_err_t req_wifi_init(Rpc* req, Rpc* resp, void* priv_data) {
 }
 
 static esp_err_t req_wifi_deinit(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE_SIMPLE(RpcRespWifiDeinit, resp_wifi_deinit, RpcReqWifiDeinit, req_wifi_deinit,
+    RPC_TEMPLATE_SIMPLE(RpcRespWifiDeinit, resp_wifi_deinit,
+                        RpcReqWifiDeinit, req_wifi_deinit,
                         rpc__resp__wifi_deinit__init);
 
     RPC_RET_FAIL_IF(esp_wifi_deinit());
@@ -725,7 +758,8 @@ static esp_err_t req_wifi_deinit(Rpc* req, Rpc* resp, void* priv_data) {
 }
 
 static esp_err_t req_wifi_start(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE_SIMPLE(RpcRespWifiStart, resp_wifi_start, RpcReqWifiStart, req_wifi_start,
+    RPC_TEMPLATE_SIMPLE(RpcRespWifiStart, resp_wifi_start,
+                        RpcReqWifiStart, req_wifi_start,
                         rpc__resp__wifi_start__init);
 
     RPC_RET_FAIL_IF(esp_wifi_start());
@@ -733,7 +767,9 @@ static esp_err_t req_wifi_start(Rpc* req, Rpc* resp, void* priv_data) {
 }
 
 static esp_err_t req_wifi_stop(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE_SIMPLE(RpcRespWifiStop, resp_wifi_stop, RpcReqWifiStop, req_wifi_stop, rpc__resp__wifi_stop__init);
+    RPC_TEMPLATE_SIMPLE(RpcRespWifiStop, resp_wifi_stop,
+                        RpcReqWifiStop, req_wifi_stop,
+                        rpc__resp__wifi_stop__init);
 
     RPC_RET_FAIL_IF(esp_wifi_stop());
 
@@ -741,7 +777,8 @@ static esp_err_t req_wifi_stop(Rpc* req, Rpc* resp, void* priv_data) {
 }
 
 static esp_err_t req_wifi_connect(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE_SIMPLE(RpcRespWifiConnect, resp_wifi_connect, RpcReqWifiConnect, req_wifi_connect,
+    RPC_TEMPLATE_SIMPLE(RpcRespWifiConnect, resp_wifi_connect,
+                        RpcReqWifiConnect, req_wifi_connect,
                         rpc__resp__wifi_connect__init);
 
     ESP_LOGI(TAG, "************ connect ****************");
@@ -751,7 +788,8 @@ static esp_err_t req_wifi_connect(Rpc* req, Rpc* resp, void* priv_data) {
 }
 
 static esp_err_t req_wifi_disconnect(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE_SIMPLE(RpcRespWifiDisconnect, resp_wifi_disconnect, RpcReqWifiDisconnect, req_wifi_disconnect,
+    RPC_TEMPLATE_SIMPLE(RpcRespWifiDisconnect, resp_wifi_disconnect,
+                        RpcReqWifiDisconnect, req_wifi_disconnect,
                         rpc__resp__wifi_disconnect__init);
 
     RPC_RET_FAIL_IF(esp_wifi_disconnect());
@@ -762,10 +800,12 @@ static esp_err_t req_wifi_disconnect(Rpc* req, Rpc* resp, void* priv_data) {
 static esp_err_t req_wifi_set_config(Rpc* req, Rpc* resp, void* priv_data) {
     wifi_config_t cfg = {0};
 
-    RPC_TEMPLATE(RpcRespWifiSetConfig, resp_wifi_set_config, RpcReqWifiSetConfig, req_wifi_set_config,
+    RPC_TEMPLATE(RpcRespWifiSetConfig, resp_wifi_set_config,
+                 RpcReqWifiSetConfig, req_wifi_set_config,
                  rpc__resp__wifi_set_config__init);
 
-    RPC_RET_FAIL_IF((req_payload->iface != WIFI_IF_STA) && (req_payload->iface != WIFI_IF_AP));
+    RPC_RET_FAIL_IF((req_payload->iface != WIFI_IF_STA) &&
+                    (req_payload->iface != WIFI_IF_AP));
 
     RPC_RET_FAIL_IF(!req_payload->cfg);
     if (req_payload->iface == WIFI_IF_STA) {
@@ -790,12 +830,20 @@ static esp_err_t req_wifi_set_config(Rpc* req, Rpc* resp, void* priv_data) {
         p_a_sta->channel            = p_c_sta->channel;
         p_a_sta->listen_interval    = p_c_sta->listen_interval;
         p_a_sta->sort_method        = p_c_sta->sort_method;
-        p_a_sta->threshold.rssi     = p_c_sta->threshold->rssi;
-        p_a_sta->threshold.authmode = p_c_sta->threshold->authmode;
+        if (p_c_sta->threshold) {
+            p_a_sta->threshold.rssi = p_c_sta->threshold->rssi;
+            p_a_sta->threshold.authmode = p_c_sta->threshold->authmode;
+            #if H_PRESENT_IN_ESP_IDF_5_4_0
+            p_a_sta->threshold.rssi_5g_adjustment = p_c_sta->threshold->rssi_5g_adjustment;
+            #endif
+        }
+
         // p_a_sta->ssid_hidden = p_c_sta->ssid_hidden;
         // p_a_sta->max_connections = p_c_sta->max_connections;
-        p_a_sta->pmf_cfg.capable  = p_c_sta->pmf_cfg->capable;
-        p_a_sta->pmf_cfg.required = p_c_sta->pmf_cfg->required;
+        if (p_c_sta->pmf_cfg) {
+            p_a_sta->pmf_cfg.capable = p_c_sta->pmf_cfg->capable;
+            p_a_sta->pmf_cfg.required = p_c_sta->pmf_cfg->required;
+        }
 
         p_a_sta->rm_enabled         = H_GET_BIT(WIFI_STA_CONFIG_1_rm_enabled, p_c_sta->bitmask);
         p_a_sta->btm_enabled        = H_GET_BIT(WIFI_STA_CONFIG_1_btm_enabled, p_c_sta->bitmask);
@@ -803,41 +851,51 @@ static esp_err_t req_wifi_set_config(Rpc* req, Rpc* resp, void* priv_data) {
         p_a_sta->ft_enabled         = H_GET_BIT(WIFI_STA_CONFIG_1_ft_enabled, p_c_sta->bitmask);
         p_a_sta->owe_enabled        = H_GET_BIT(WIFI_STA_CONFIG_1_owe_enabled, p_c_sta->bitmask);
         p_a_sta->transition_disable = H_GET_BIT(WIFI_STA_CONFIG_1_transition_disable, p_c_sta->bitmask);
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 5, 0)
-        p_a_sta->reserved = WIFI_STA_CONFIG_1_GET_RESERVED_VAL(p_c_sta->bitmask);
-#else
+        #if H_DECODE_WIFI_RESERVED_FIELD
+        #if H_WIFI_NEW_RESERVED_FIELD_NAMES
         p_a_sta->reserved1 = WIFI_STA_CONFIG_1_GET_RESERVED_VAL(p_c_sta->bitmask);
-#endif
+        #else
+        p_a_sta->reserved = WIFI_STA_CONFIG_1_GET_RESERVED_VAL(p_c_sta->bitmask);
+        #endif
+        #endif
 
         p_a_sta->sae_pwe_h2e       = p_c_sta->sae_pwe_h2e;
+        p_a_sta->sae_pk_mode       = p_c_sta->sae_pk_mode;
         p_a_sta->failure_retry_cnt = p_c_sta->failure_retry_cnt;
 
         p_a_sta->he_dcm_set = H_GET_BIT(WIFI_STA_CONFIG_2_he_dcm_set_BIT, p_c_sta->he_bitmask);
-        // WIFI_HE_STA_CONFIG_he_dcm_max_constellation_tx is two bits wide
+        /* WIFI_STA_CONFIG_2_he_dcm_max_constellation_tx is two bits wide */
         p_a_sta->he_dcm_max_constellation_tx =
             (p_c_sta->he_bitmask >> WIFI_STA_CONFIG_2_he_dcm_max_constellation_tx_BITS) & 0x03;
-        // WIFI_HE_STA_CONFIG_he_dcm_max_constellation_rx is two bits wide
+        /* WIFI_STA_CONFIG_2_he_dcm_max_constellation_rx is two bits wide */
         p_a_sta->he_dcm_max_constellation_rx =
             (p_c_sta->he_bitmask >> WIFI_STA_CONFIG_2_he_dcm_max_constellation_rx_BITS) & 0x03;
+
         p_a_sta->he_mcs9_enabled = H_GET_BIT(WIFI_STA_CONFIG_2_he_mcs9_enabled_BIT, p_c_sta->he_bitmask);
         p_a_sta->he_su_beamformee_disabled =
             H_GET_BIT(WIFI_STA_CONFIG_2_he_su_beamformee_disabled_BIT, p_c_sta->he_bitmask);
         p_a_sta->he_trig_su_bmforming_feedback_disabled =
-            H_GET_BIT(WIFI_STA_CONFIG_2_he_trig_su_bmforming_feedback_disabled_BIT, p_c_sta->bitmask);
+            H_GET_BIT(WIFI_STA_CONFIG_2_he_trig_su_bmforming_feedback_disabled_BIT, p_c_sta->he_bitmask);
         p_a_sta->he_trig_mu_bmforming_partial_feedback_disabled =
-            H_GET_BIT(WIFI_STA_CONFIG_2_he_trig_mu_bmforming_partial_feedback_disabled_BIT, p_c_sta->bitmask);
+            H_GET_BIT(WIFI_STA_CONFIG_2_he_trig_mu_bmforming_partial_feedback_disabled_BIT, p_c_sta->he_bitmask);
         p_a_sta->he_trig_cqi_feedback_disabled =
-            H_GET_BIT(WIFI_STA_CONFIG_2_he_trig_cqi_feedback_disabled_BIT, p_c_sta->bitmask);
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 5, 0)
-        p_a_sta->he_reserved = WIFI_STA_CONFIG_2_GET_RESERVED_VAL(p_c_sta->he_bitmask);
-#else
+            H_GET_BIT(WIFI_STA_CONFIG_2_he_trig_cqi_feedback_disabled_BIT, p_c_sta->he_bitmask);
+
+        #if H_PRESENT_IN_ESP_IDF_5_5_0
         p_a_sta->vht_su_beamformee_disabled =
             H_GET_BIT(WIFI_STA_CONFIG_2_vht_su_beamformee_disabled, p_c_sta->he_bitmask);
         p_a_sta->vht_mu_beamformee_disabled =
             H_GET_BIT(WIFI_STA_CONFIG_2_vht_mu_beamformee_disabled, p_c_sta->he_bitmask);
         p_a_sta->vht_mcs8_enabled = H_GET_BIT(WIFI_STA_CONFIG_2_vht_mcs8_enabled, p_c_sta->he_bitmask);
-        p_a_sta->reserved2        = WIFI_STA_CONFIG_2_GET_RESERVED_VAL(p_c_sta->he_bitmask);
-#endif
+        #endif
+
+        #if H_DECODE_WIFI_RESERVED_FIELD
+        #if H_WIFI_NEW_RESERVED_FIELD_NAMES
+        p_a_sta->reserved2 = WIFI_STA_CONFIG_2_GET_RESERVED_VAL(p_c_sta->he_bitmask);
+        #else
+        p_a_sta->he_reserved = WIFI_STA_CONFIG_2_GET_RESERVED_VAL(p_c_sta->he_bitmask);
+        #endif
+        #endif
 
         /* Avoid using fast scan, which leads to faster SSID selection,
          * but faces data throughput issues when same SSID broadcasted by weaker AP
@@ -860,11 +918,26 @@ static esp_err_t req_wifi_set_config(Rpc* req, Rpc* resp, void* priv_data) {
         p_a_ap->ssid_hidden      = p_c_ap->ssid_hidden;
         p_a_ap->max_connection   = p_c_ap->max_connection;
         p_a_ap->beacon_interval  = p_c_ap->beacon_interval;
+        p_a_ap->csa_count        = p_c_ap->csa_count;
+        p_a_ap->dtim_period      = p_c_ap->dtim_period;
         p_a_ap->pairwise_cipher  = p_c_ap->pairwise_cipher;
         p_a_ap->ftm_responder    = p_c_ap->ftm_responder;
-        p_a_ap->pmf_cfg.capable  = p_c_ap->pmf_cfg->capable;
-        p_a_ap->pmf_cfg.required = p_c_ap->pmf_cfg->required;
-        p_a_ap->sae_pwe_h2e      = p_c_ap->sae_pwe_h2e;
+        if (p_c_ap->pmf_cfg) {
+            p_a_ap->pmf_cfg.capable = p_c_ap->pmf_cfg->capable;
+            p_a_ap->pmf_cfg.required = p_c_ap->pmf_cfg->required;
+        }
+
+        p_a_ap->sae_pwe_h2e        = p_c_ap->sae_pwe_h2e;
+        p_a_ap->transition_disable = p_c_ap->transition_disable;
+
+        #if H_PRESENT_IN_ESP_IDF_5_5_0
+        p_a_ap->sae_ext = p_c_ap->sae_ext;
+        if (p_c_ap->bss_max_idle_cfg) {
+            p_a_ap->bss_max_idle_cfg.period = p_c_ap->bss_max_idle_cfg->period;
+            p_a_ap->bss_max_idle_cfg.protected_keep_alive = p_c_ap->bss_max_idle_cfg->protected_keep_alive;
+        }
+        p_a_ap->gtk_rekey_interval = p_c_ap->gtk_rekey_interval;
+        #endif
     }
 
     RPC_RET_FAIL_IF(esp_wifi_set_config(req_payload->iface, &cfg));
@@ -876,7 +949,8 @@ static esp_err_t req_wifi_get_config(Rpc* req, Rpc* resp, void* priv_data) {
     wifi_interface_t iface;
     wifi_config_t    cfg = {0};
 
-    RPC_TEMPLATE(RpcRespWifiGetConfig, resp_wifi_get_config, RpcReqWifiGetConfig, req_wifi_get_config,
+    RPC_TEMPLATE(RpcRespWifiGetConfig, resp_wifi_get_config,
+                 RpcReqWifiGetConfig, req_wifi_get_config,
                  rpc__resp__wifi_get_config__init);
 
     iface               = req_payload->iface;
@@ -886,7 +960,6 @@ static esp_err_t req_wifi_get_config(Rpc* req, Rpc* resp, void* priv_data) {
 
     RPC_ALLOC_ELEMENT(WifiConfig, resp_payload->cfg, wifi_config__init);
     switch (iface) {
-
         case WIFI_IF_STA : {
             wifi_sta_config_t* p_a_sta = &(cfg.sta);
             resp_payload->cfg->u_case  = WIFI_CONFIG__U_STA;
@@ -910,6 +983,9 @@ static esp_err_t req_wifi_get_config(Rpc* req, Rpc* resp, void* priv_data) {
             RPC_ALLOC_ELEMENT(WifiScanThreshold, p_c_sta->threshold, wifi_scan_threshold__init);
             p_c_sta->threshold->rssi     = p_a_sta->threshold.rssi;
             p_c_sta->threshold->authmode = p_a_sta->threshold.authmode;
+            #if H_PRESENT_IN_ESP_IDF_5_4_0
+            p_c_sta->threshold->rssi_5g_adjustment = p_a_sta->threshold.rssi_5g_adjustment;
+            #endif
             RPC_ALLOC_ELEMENT(WifiPmfConfig, p_c_sta->pmf_cfg, wifi_pmf_config__init);
             p_c_sta->pmf_cfg->capable  = p_a_sta->pmf_cfg.capable;
             p_c_sta->pmf_cfg->required = p_a_sta->pmf_cfg.required;
@@ -938,27 +1014,31 @@ static esp_err_t req_wifi_get_config(Rpc* req, Rpc* resp, void* priv_data) {
                 H_SET_BIT(WIFI_STA_CONFIG_1_transition_disable, p_c_sta->bitmask);
             }
 
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 5, 0)
-            WIFI_STA_CONFIG_1_SET_RESERVED_VAL(p_a_sta->reserved, p_c_sta->bitmask);
-#else
+            #if H_DECODE_WIFI_RESERVED_FIELD
+            #if H_WIFI_NEW_RESERVED_FIELD_NAMES
             WIFI_STA_CONFIG_1_SET_RESERVED_VAL(p_a_sta->reserved1, p_c_sta->bitmask);
-#endif
+            #else
+            WIFI_STA_CONFIG_1_SET_RESERVED_VAL(p_a_sta->reserved, p_c_sta->bitmask);
+            #endif
+            #endif
 
             p_c_sta->sae_pwe_h2e       = p_a_sta->sae_pwe_h2e;
+            p_c_sta->sae_pk_mode       = p_a_sta->sae_pk_mode;
             p_c_sta->failure_retry_cnt = p_a_sta->failure_retry_cnt;
 
+            /* HE field handling */
             if (p_a_sta->he_dcm_set) {
                 H_SET_BIT(WIFI_STA_CONFIG_2_he_dcm_set_BIT, p_c_sta->he_bitmask);
             }
 
-            // WIFI_HE_STA_CONFIG_he_dcm_max_constellation_tx is two bits wide
-            if (p_a_sta->he_dcm_max_constellation_tx) {
+            /* WIFI_STA_CONFIG_2_he_dcm_max_constellation_tx is two bits wide */
+            if (p_a_sta->he_dcm_max_constellation_tx & 0x03) {
                 p_c_sta->he_bitmask |= ((p_a_sta->he_dcm_max_constellation_tx & 0x03)
                                         << WIFI_STA_CONFIG_2_he_dcm_max_constellation_tx_BITS);
             }
 
-            // WIFI_HE_STA_CONFIG_he_dcm_max_constellation_rx is two bits wide
-            if (p_a_sta->he_dcm_max_constellation_rx) {
+            /* WIFI_STA_CONFIG_2_he_dcm_max_constellation_rx is two bits wide */
+            if (p_a_sta->he_dcm_max_constellation_rx & 0x03) {
                 p_c_sta->he_bitmask |= ((p_a_sta->he_dcm_max_constellation_rx & 0x03)
                                         << WIFI_STA_CONFIG_2_he_dcm_max_constellation_rx_BITS);
             }
@@ -983,9 +1063,7 @@ static esp_err_t req_wifi_get_config(Rpc* req, Rpc* resp, void* priv_data) {
                 H_SET_BIT(WIFI_STA_CONFIG_2_he_trig_cqi_feedback_disabled_BIT, p_c_sta->he_bitmask);
             }
 
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 5, 0)
-            WIFI_STA_CONFIG_2_SET_RESERVED_VAL(p_a_sta->he_reserved, p_c_sta->he_bitmask);
-#else
+            #if H_PRESENT_IN_ESP_IDF_5_5_0
             if (p_a_sta->vht_su_beamformee_disabled) {
                 H_SET_BIT(WIFI_STA_CONFIG_2_vht_su_beamformee_disabled, p_c_sta->he_bitmask);
             }
@@ -997,9 +1075,15 @@ static esp_err_t req_wifi_get_config(Rpc* req, Rpc* resp, void* priv_data) {
             if (p_a_sta->vht_mcs8_enabled) {
                 H_SET_BIT(WIFI_STA_CONFIG_2_vht_mcs8_enabled, p_c_sta->he_bitmask);
             }
+            #endif
 
+            #if H_DECODE_WIFI_RESERVED_FIELD
+            #if H_WIFI_NEW_RESERVED_FIELD_NAMES
             WIFI_STA_CONFIG_2_SET_RESERVED_VAL(p_a_sta->reserved2, p_c_sta->he_bitmask);
-#endif
+            #else
+            WIFI_STA_CONFIG_2_SET_RESERVED_VAL(p_a_sta->he_reserved, p_c_sta->he_bitmask);
+            #endif
+            #endif
 
             break;
         }
@@ -1011,20 +1095,31 @@ static esp_err_t req_wifi_get_config(Rpc* req, Rpc* resp, void* priv_data) {
             WifiApConfig* p_c_ap = resp_payload->cfg->ap;
             RPC_RESP_COPY_STR(p_c_ap->password, p_a_ap->password, PASSWORD_LENGTH);
             p_c_ap->ssid_len        = p_a_ap->ssid_len;
+            if (p_c_ap->ssid_len) {
+                RPC_RESP_COPY_STR(p_c_ap->ssid, p_a_ap->ssid, SSID_LENGTH);
+            }
             p_c_ap->channel         = p_a_ap->channel;
             p_c_ap->authmode        = p_a_ap->authmode;
             p_c_ap->ssid_hidden     = p_a_ap->ssid_hidden;
             p_c_ap->max_connection  = p_a_ap->max_connection;
             p_c_ap->beacon_interval = p_a_ap->beacon_interval;
+            p_c_ap->csa_count       = p_a_ap->csa_count;
+            p_c_ap->dtim_period     = p_a_ap->dtim_period;
             p_c_ap->pairwise_cipher = p_a_ap->pairwise_cipher;
             p_c_ap->ftm_responder   = p_a_ap->ftm_responder;
             RPC_ALLOC_ELEMENT(WifiPmfConfig, p_c_ap->pmf_cfg, wifi_pmf_config__init);
             p_c_ap->pmf_cfg->capable  = p_a_ap->pmf_cfg.capable;
             p_c_ap->pmf_cfg->required = p_a_ap->pmf_cfg.required;
-            if (p_c_ap->ssid_len) {
-                RPC_RESP_COPY_STR(p_c_ap->ssid, p_a_ap->ssid, SSID_LENGTH);
-            }
+
             p_c_ap->sae_pwe_h2e = p_a_ap->sae_pwe_h2e;
+            p_c_ap->transition_disable = p_a_ap->transition_disable;
+            #if H_PRESENT_IN_ESP_IDF_5_5_0
+            p_c_ap->sae_ext = p_a_ap->sae_ext;
+            RPC_ALLOC_ELEMENT(WifiBssMaxIdleConfig, p_c_ap->bss_max_idle_cfg, wifi_bss_max_idle_config__init);
+            p_c_ap->bss_max_idle_cfg->period = p_a_ap->bss_max_idle_cfg.period;
+            p_c_ap->bss_max_idle_cfg->protected_keep_alive = p_a_ap->bss_max_idle_cfg.protected_keep_alive;
+            p_c_ap->gtk_rekey_interval = p_a_ap->gtk_rekey_interval;
+            #endif
             break;
         }
         default :
@@ -1042,7 +1137,8 @@ static esp_err_t req_wifi_scan_start(Rpc* req, Rpc* resp, void* priv_data) {
     wifi_scan_config_t* p_a       = &scan_conf;
     wifi_scan_time_t*   p_a_st    = &p_a->scan_time;
 
-    RPC_TEMPLATE(RpcRespWifiScanStart, resp_wifi_scan_start, RpcReqWifiScanStart, req_wifi_scan_start,
+    RPC_TEMPLATE(RpcRespWifiScanStart, resp_wifi_scan_start,
+                 RpcReqWifiScanStart, req_wifi_scan_start,
                  rpc__resp__wifi_scan_start__init);
 
     p_c = req_payload->config;
@@ -1058,6 +1154,7 @@ static esp_err_t req_wifi_scan_start(Rpc* req, Rpc* resp, void* priv_data) {
         if (p_c->ssid.len) {
             p_a->ssid = p_c->ssid.data;
         }
+
         if (p_c->bssid.len) {
             p_a->bssid = p_c->bssid.data;
         }
@@ -1073,6 +1170,11 @@ static esp_err_t req_wifi_scan_start(Rpc* req, Rpc* resp, void* priv_data) {
         p_a_st->active.max = p_c_st->active->max;
 
         p_a->home_chan_dwell_time = p_c->home_chan_dwell_time;
+
+        if (p_c->channel_bitmap) {
+            p_a->channel_bitmap.ghz_2_channels = p_c->channel_bitmap->ghz_2_channels;
+            p_a->channel_bitmap.ghz_5_channels = p_c->channel_bitmap->ghz_5_channels;
+        }
     }
 
     RPC_RET_FAIL_IF(esp_wifi_scan_start(p_a, req_payload->block));
@@ -1081,15 +1183,18 @@ static esp_err_t req_wifi_scan_start(Rpc* req, Rpc* resp, void* priv_data) {
 }
 
 static esp_err_t req_wifi_set_protocol(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE(RpcRespWifiSetProtocol, resp_wifi_set_protocol, RpcReqWifiSetProtocol, req_wifi_set_protocol,
+    RPC_TEMPLATE(RpcRespWifiSetProtocol, resp_wifi_set_protocol,
+                 RpcReqWifiSetProtocol, req_wifi_set_protocol,
                  rpc__resp__wifi_set_protocol__init);
 
-    RPC_RET_FAIL_IF(esp_wifi_set_protocol(req_payload->ifx, req_payload->protocol_bitmap));
+    RPC_RET_FAIL_IF(esp_wifi_set_protocol(req_payload->ifx,
+                    req_payload->protocol_bitmap));
     return ESP_OK;
 }
 
 static esp_err_t req_wifi_get_protocol(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE(RpcRespWifiGetProtocol, resp_wifi_get_protocol, RpcReqWifiGetProtocol, req_wifi_get_protocol,
+    RPC_TEMPLATE(RpcRespWifiGetProtocol, resp_wifi_get_protocol,
+                 RpcReqWifiGetProtocol, req_wifi_get_protocol,
                  rpc__resp__wifi_get_protocol__init);
 
     uint8_t protocol_bitmap = 0;
@@ -1100,7 +1205,8 @@ static esp_err_t req_wifi_get_protocol(Rpc* req, Rpc* resp, void* priv_data) {
 }
 
 static esp_err_t req_wifi_scan_stop(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE_SIMPLE(RpcRespWifiScanStop, resp_wifi_scan_stop, RpcReqWifiScanStop, req_wifi_scan_stop,
+    RPC_TEMPLATE_SIMPLE(RpcRespWifiScanStop, resp_wifi_scan_stop,
+                        RpcReqWifiScanStop, req_wifi_scan_stop,
                         rpc__resp__wifi_scan_stop__init);
 
     RPC_RET_FAIL_IF(esp_wifi_scan_stop());
@@ -1109,10 +1215,11 @@ static esp_err_t req_wifi_scan_stop(Rpc* req, Rpc* resp, void* priv_data) {
 
 static esp_err_t req_wifi_scan_get_ap_num(Rpc* req, Rpc* resp, void* priv_data) {
     uint16_t number = 0;
-    int      ret    = 0;
+    int ret = 0;
 
-    RPC_TEMPLATE_SIMPLE(RpcRespWifiScanGetApNum, resp_wifi_scan_get_ap_num, RpcReqWifiScanGetApNum,
-                        req_wifi_scan_get_ap_num, rpc__resp__wifi_scan_get_ap_num__init);
+    RPC_TEMPLATE_SIMPLE(RpcRespWifiScanGetApNum, resp_wifi_scan_get_ap_num,
+                        RpcReqWifiScanGetApNum, req_wifi_scan_get_ap_num,
+                        rpc__resp__wifi_scan_get_ap_num__init);
 
     ret = esp_wifi_scan_get_ap_num(&number);
     RPC_RET_FAIL_IF(ret);
@@ -1125,12 +1232,18 @@ static esp_err_t req_wifi_scan_get_ap_num(Rpc* req, Rpc* resp, void* priv_data) 
 // function only copies data: any required memory in the rpc struct must be allocated already
 static int copy_ap_record_to_rpc_struct(WifiApRecord* rpc, wifi_ap_record_t* scan) {
     ESP_LOGD(TAG, "Ssid: %s, Bssid: " MACSTR, scan->ssid, MAC2STR(scan->bssid));
-    ESP_LOGD(TAG, "Primary: %u Second: %u Rssi: %d Authmode: %u", scan->primary, scan->second, scan->rssi,
-             scan->authmode);
-    ESP_LOGD(TAG, "PairwiseCipher: %u Groupcipher: %u Ant: %u", scan->pairwise_cipher, scan->group_cipher, scan->ant);
+    ESP_LOGD(TAG, "Primary: %u Second: %u Rssi: %d Authmode: %u",
+             scan->primary, scan->second,
+             scan->rssi, scan->authmode);
+    ESP_LOGD(TAG, "PairwiseCipher: %u Groupcipher: %u Ant: %u",
+             scan->pairwise_cipher, scan->group_cipher,
+             scan->ant);
     ESP_LOGD(TAG, "Bitmask: 11b:%u g:%u n:%u a:%u ac:%u ax:%u lr:%u wps:%u ftm_resp:%u ftm_ini:%u res: %u",
-             scan->phy_11b, scan->phy_11g, scan->phy_11n, scan->phy_11a, scan->phy_11ac, scan->phy_11ax, scan->phy_lr,
-             scan->wps, scan->ftm_responder, scan->ftm_initiator, scan->reserved);
+             scan->phy_11b, scan->phy_11g, scan->phy_11n,
+             scan->phy_11a, scan->phy_11ac, scan->phy_11ax,
+             scan->phy_lr,
+             scan->wps, scan->ftm_responder,
+             scan->ftm_initiator, scan->reserved);
     RPC_COPY_STR(rpc->ssid, scan->ssid, SSID_LENGTH);
     RPC_COPY_BYTES(rpc->bssid, scan->bssid, BSSID_BYTES_SIZE);
     rpc->primary         = scan->primary;
@@ -1191,12 +1304,12 @@ static int copy_ap_record_to_rpc_struct(WifiApRecord* rpc, wifi_ap_record_t* sca
     rpc->country->max_tx_power = scan->country.max_tx_power;
     rpc->country->policy       = scan->country.policy;
 
-    ESP_LOGD(TAG, "Country cc:%c%c schan: %u nchan: %u max_tx_pow: %d policy: %u", scan->country.cc[0],
-             scan->country.cc[1], scan->country.schan, scan->country.nchan, scan->country.max_tx_power,
-             scan->country.policy);
+    ESP_LOGD(TAG, "Country cc:%c%c schan: %u nchan: %u max_tx_pow: %d policy: %u",
+             scan->country.cc[0], scan->country.cc[1], scan->country.schan, scan->country.nchan,
+             scan->country.max_tx_power, scan->country.policy);
 
     /* he_ap */
-    WifiHeApInfo*      p_c_he_ap = rpc->he_ap;
+    WifiHeApInfo* p_c_he_ap = rpc->he_ap;
     wifi_he_ap_info_t* p_a_he_ap = &scan->he_ap;
 
     // bss_color uses six bits
@@ -1212,8 +1325,8 @@ static int copy_ap_record_to_rpc_struct(WifiApRecord* rpc, wifi_ap_record_t* sca
 
     p_c_he_ap->bssid_index = p_a_he_ap->bssid_index;
 
-    ESP_LOGD(TAG, "HE_AP: bss_color %d, partial_bss_color %d, bss_color_disabled %d", p_a_he_ap->bss_color,
-             p_a_he_ap->bss_color_disabled, p_a_he_ap->bss_color_disabled);
+    ESP_LOGD(TAG, "HE_AP: bss_color %d, partial_bss_color %d, bss_color_disabled %d",
+             p_a_he_ap->bss_color, p_a_he_ap->bss_color_disabled, p_a_he_ap->bss_color_disabled);
 
     rpc->bandwidth    = scan->bandwidth;
     rpc->vht_ch_freq1 = scan->vht_ch_freq1;
@@ -1223,11 +1336,12 @@ static int copy_ap_record_to_rpc_struct(WifiApRecord* rpc, wifi_ap_record_t* sca
 }
 
 static esp_err_t req_wifi_scan_get_ap_record(Rpc* req, Rpc* resp, void* priv_data) {
-    int               ret    = 0;
+    int ret = 0;
     wifi_ap_record_t* p_a_ap = NULL;
 
-    RPC_TEMPLATE_SIMPLE(RpcRespWifiScanGetApRecord, resp_wifi_scan_get_ap_record, RpcReqWifiScanGetApRecord,
-                        req_wifi_scan_get_ap_record, rpc__resp__wifi_scan_get_ap_record__init);
+    RPC_TEMPLATE_SIMPLE(RpcRespWifiScanGetApRecord, resp_wifi_scan_get_ap_record,
+                        RpcReqWifiScanGetApRecord, req_wifi_scan_get_ap_record,
+                        rpc__resp__wifi_scan_get_ap_record__init);
 
     p_a_ap = (wifi_ap_record_t*)calloc(1, sizeof(wifi_ap_record_t));
     RPC_RET_FAIL_IF(!p_a_ap);
@@ -1262,8 +1376,9 @@ static esp_err_t req_wifi_scan_get_ap_records(Rpc* req, Rpc* resp, void* priv_da
 
     wifi_ap_record_t* p_a_ap_list = NULL;
 
-    RPC_TEMPLATE_SIMPLE(RpcRespWifiScanGetApRecords, resp_wifi_scan_get_ap_records, RpcReqWifiScanGetApRecords,
-                        req_wifi_scan_get_ap_records, rpc__resp__wifi_scan_get_ap_records__init);
+    RPC_TEMPLATE_SIMPLE(RpcRespWifiScanGetApRecords, resp_wifi_scan_get_ap_records,
+                        RpcReqWifiScanGetApRecords, req_wifi_scan_get_ap_records,
+                        rpc__resp__wifi_scan_get_ap_records__init);
 
     number = req->req_wifi_scan_get_ap_records->number;
     ESP_LOGD(TAG, "n_elem_scan_list predicted: %u\n", number);
@@ -1316,7 +1431,8 @@ err:
 }
 
 static esp_err_t req_wifi_clear_ap_list(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE_SIMPLE(RpcRespWifiClearApList, resp_wifi_clear_ap_list, RpcReqWifiClearApList, req_wifi_clear_ap_list,
+    RPC_TEMPLATE_SIMPLE(RpcRespWifiClearApList, resp_wifi_clear_ap_list,
+                        RpcReqWifiClearApList, req_wifi_clear_ap_list,
                         rpc__resp__wifi_clear_ap_list__init);
 
     RPC_RET_FAIL_IF(esp_wifi_clear_ap_list());
@@ -1324,7 +1440,8 @@ static esp_err_t req_wifi_clear_ap_list(Rpc* req, Rpc* resp, void* priv_data) {
 }
 
 static esp_err_t req_wifi_restore(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE_SIMPLE(RpcRespWifiRestore, resp_wifi_restore, RpcReqWifiRestore, req_wifi_restore,
+    RPC_TEMPLATE_SIMPLE(RpcRespWifiRestore, resp_wifi_restore,
+                        RpcReqWifiRestore, req_wifi_restore,
                         rpc__resp__wifi_restore__init);
 
     RPC_RET_FAIL_IF(esp_wifi_restore());
@@ -1332,19 +1449,21 @@ static esp_err_t req_wifi_restore(Rpc* req, Rpc* resp, void* priv_data) {
 }
 
 static esp_err_t req_wifi_clear_fast_connect(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE_SIMPLE(RpcRespWifiClearFastConnect, resp_wifi_clear_fast_connect, RpcReqWifiClearFastConnect,
-                        req_wifi_clear_fast_connect, rpc__resp__wifi_clear_fast_connect__init);
+    RPC_TEMPLATE_SIMPLE(RpcRespWifiClearFastConnect, resp_wifi_clear_fast_connect,
+                        RpcReqWifiClearFastConnect, req_wifi_clear_fast_connect,
+                        rpc__resp__wifi_clear_fast_connect__init);
 
     RPC_RET_FAIL_IF(esp_wifi_clear_fast_connect());
     return ESP_OK;
 }
 
 static esp_err_t req_wifi_sta_get_ap_info(Rpc* req, Rpc* resp, void* priv_data) {
-    int              ret         = 0;
+    int ret = 0;
     wifi_ap_record_t p_a_ap_info = {0};
 
-    RPC_TEMPLATE_SIMPLE(RpcRespWifiStaGetApInfo, resp_wifi_sta_get_ap_info, RpcReqWifiStaGetApInfo,
-                        req_wifi_sta_get_ap_info, rpc__resp__wifi_sta_get_ap_info__init);
+    RPC_TEMPLATE_SIMPLE(RpcRespWifiStaGetApInfo, resp_wifi_sta_get_ap_info,
+                        RpcReqWifiStaGetApInfo, req_wifi_sta_get_ap_info,
+                        rpc__resp__wifi_sta_get_ap_info__init);
 
     RPC_RET_FAIL_IF(esp_wifi_sta_get_ap_info(&p_a_ap_info));
     RPC_ALLOC_ELEMENT(WifiApRecord, resp_payload->ap_record, wifi_ap_record__init);
@@ -1361,7 +1480,8 @@ err:
 }
 
 static esp_err_t req_wifi_deauth_sta(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE(RpcRespWifiDeauthSta, resp_wifi_deauth_sta, RpcReqWifiDeauthSta, req_wifi_deauth_sta,
+    RPC_TEMPLATE(RpcRespWifiDeauthSta, resp_wifi_deauth_sta,
+                 RpcReqWifiDeauthSta, req_wifi_deauth_sta,
                  rpc__resp__wifi_deauth_sta__init);
 
     RPC_RET_FAIL_IF(esp_wifi_deauth_sta(req_payload->aid));
@@ -1369,7 +1489,8 @@ static esp_err_t req_wifi_deauth_sta(Rpc* req, Rpc* resp, void* priv_data) {
 }
 
 static esp_err_t req_wifi_set_storage(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE(RpcRespWifiSetStorage, resp_wifi_set_storage, RpcReqWifiSetStorage, req_wifi_set_storage,
+    RPC_TEMPLATE(RpcRespWifiSetStorage, resp_wifi_set_storage,
+                 RpcReqWifiSetStorage, req_wifi_set_storage,
                  rpc__resp__wifi_set_storage__init);
 
     RPC_RET_FAIL_IF(esp_wifi_set_storage(req_payload->storage));
@@ -1377,7 +1498,8 @@ static esp_err_t req_wifi_set_storage(Rpc* req, Rpc* resp, void* priv_data) {
 }
 
 static esp_err_t req_wifi_set_bandwidth(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE(RpcRespWifiSetBandwidth, resp_wifi_set_bandwidth, RpcReqWifiSetBandwidth, req_wifi_set_bandwidth,
+    RPC_TEMPLATE(RpcRespWifiSetBandwidth, resp_wifi_set_bandwidth,
+                 RpcReqWifiSetBandwidth, req_wifi_set_bandwidth,
                  rpc__resp__wifi_set_bandwidth__init);
 
     RPC_RET_FAIL_IF(esp_wifi_set_bandwidth(req_payload->ifx, req_payload->bw));
@@ -1385,7 +1507,8 @@ static esp_err_t req_wifi_set_bandwidth(Rpc* req, Rpc* resp, void* priv_data) {
 }
 
 static esp_err_t req_wifi_get_bandwidth(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE(RpcRespWifiGetBandwidth, resp_wifi_get_bandwidth, RpcReqWifiGetBandwidth, req_wifi_get_bandwidth,
+    RPC_TEMPLATE(RpcRespWifiGetBandwidth, resp_wifi_get_bandwidth,
+                 RpcReqWifiGetBandwidth, req_wifi_get_bandwidth,
                  rpc__resp__wifi_get_bandwidth__init);
 
     wifi_bandwidth_t bw = 0;
@@ -1396,7 +1519,8 @@ static esp_err_t req_wifi_get_bandwidth(Rpc* req, Rpc* resp, void* priv_data) {
 }
 
 static esp_err_t req_wifi_set_channel(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE(RpcRespWifiSetChannel, resp_wifi_set_channel, RpcReqWifiSetChannel, req_wifi_set_channel,
+    RPC_TEMPLATE(RpcRespWifiSetChannel, resp_wifi_set_channel,
+                 RpcReqWifiSetChannel, req_wifi_set_channel,
                  rpc__resp__wifi_set_channel__init);
 
     RPC_RET_FAIL_IF(esp_wifi_set_channel(req_payload->primary, req_payload->second));
@@ -1404,7 +1528,8 @@ static esp_err_t req_wifi_set_channel(Rpc* req, Rpc* resp, void* priv_data) {
 }
 
 static esp_err_t req_wifi_get_channel(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE_SIMPLE(RpcRespWifiGetChannel, resp_wifi_get_channel, RpcReqWifiGetChannel, req_wifi_get_channel,
+    RPC_TEMPLATE_SIMPLE(RpcRespWifiGetChannel, resp_wifi_get_channel,
+                        RpcReqWifiGetChannel, req_wifi_get_channel,
                         rpc__resp__wifi_get_channel__init);
 
     uint8_t            primary = 0;
@@ -1417,21 +1542,24 @@ static esp_err_t req_wifi_get_channel(Rpc* req, Rpc* resp, void* priv_data) {
 }
 
 static esp_err_t req_wifi_set_country_code(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE(RpcRespWifiSetCountryCode, resp_wifi_set_country_code, RpcReqWifiSetCountryCode,
-                 req_wifi_set_country_code, rpc__resp__wifi_set_country_code__init);
+    RPC_TEMPLATE(RpcRespWifiSetCountryCode, resp_wifi_set_country_code,
+                 RpcReqWifiSetCountryCode, req_wifi_set_country_code,
+                 rpc__resp__wifi_set_country_code__init);
 
     char cc[3] = {0}; // country code
     RPC_RET_FAIL_IF(!req_payload->country.data);
     RPC_REQ_COPY_STR(&cc[0], req_payload->country, 2); // only copy the first two chars
 
-    RPC_RET_FAIL_IF(esp_wifi_set_country_code(&cc[0], req_payload->ieee80211d_enabled));
+    RPC_RET_FAIL_IF(esp_wifi_set_country_code(&cc[0],
+                    req_payload->ieee80211d_enabled));
 
     return ESP_OK;
 }
 
 static esp_err_t req_wifi_get_country_code(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE_SIMPLE(RpcRespWifiGetCountryCode, resp_wifi_get_country_code, RpcReqWifiGetCountryCode,
-                        req_wifi_get_country_code, rpc__resp__wifi_get_country_code__init);
+    RPC_TEMPLATE_SIMPLE(RpcRespWifiGetCountryCode, resp_wifi_get_country_code,
+                        RpcReqWifiGetCountryCode, req_wifi_get_country_code,
+                        rpc__resp__wifi_get_country_code__init);
 
     char cc[3] = {0}; // country code
     RPC_RET_FAIL_IF(esp_wifi_get_country_code(&cc[0]));
@@ -1442,7 +1570,8 @@ static esp_err_t req_wifi_get_country_code(Rpc* req, Rpc* resp, void* priv_data)
 }
 
 static esp_err_t req_wifi_set_country(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE(RpcRespWifiSetCountry, resp_wifi_set_country, RpcReqWifiSetCountry, req_wifi_set_country,
+    RPC_TEMPLATE(RpcRespWifiSetCountry, resp_wifi_set_country,
+                 RpcReqWifiSetCountry, req_wifi_set_country,
                  rpc__resp__wifi_set_country__init);
 
     RPC_RET_FAIL_IF(!req_payload->country);
@@ -1461,7 +1590,8 @@ static esp_err_t req_wifi_set_country(Rpc* req, Rpc* resp, void* priv_data) {
 }
 
 static esp_err_t req_wifi_get_country(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE_SIMPLE(RpcRespWifiGetCountry, resp_wifi_get_country, RpcReqWifiGetCountry, req_wifi_get_country,
+    RPC_TEMPLATE_SIMPLE(RpcRespWifiGetCountry, resp_wifi_get_country,
+                        RpcReqWifiGetCountry, req_wifi_get_country,
                         rpc__resp__wifi_get_country__init);
 
     wifi_country_t country = {0};
@@ -1480,8 +1610,9 @@ err:
 }
 
 static esp_err_t req_wifi_ap_get_sta_list(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE_SIMPLE(RpcRespWifiApGetStaList, resp_wifi_ap_get_sta_list, RpcReqWifiApGetStaList,
-                        req_wifi_ap_get_sta_list, rpc__resp__wifi_ap_get_sta_list__init);
+    RPC_TEMPLATE_SIMPLE(RpcRespWifiApGetStaList, resp_wifi_ap_get_sta_list,
+                        RpcReqWifiApGetStaList, req_wifi_ap_get_sta_list,
+                        rpc__resp__wifi_ap_get_sta_list__init);
 
     wifi_sta_list_t sta;
     RPC_RET_FAIL_IF(esp_wifi_ap_get_sta_list(&sta));
@@ -1538,7 +1669,8 @@ err:
 }
 
 static esp_err_t req_wifi_ap_get_sta_aid(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE(RpcRespWifiApGetStaAid, resp_wifi_ap_get_sta_aid, RpcReqWifiApGetStaAid, req_wifi_ap_get_sta_aid,
+    RPC_TEMPLATE(RpcRespWifiApGetStaAid, resp_wifi_ap_get_sta_aid,
+                 RpcReqWifiApGetStaAid, req_wifi_ap_get_sta_aid,
                  rpc__resp__wifi_ap_get_sta_aid__init);
 
     uint8_t  mac[6];
@@ -1554,7 +1686,8 @@ static esp_err_t req_wifi_ap_get_sta_aid(Rpc* req, Rpc* resp, void* priv_data) {
 }
 
 static esp_err_t req_wifi_sta_get_rssi(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE_SIMPLE(RpcRespWifiStaGetRssi, resp_wifi_sta_get_rssi, RpcReqWifiStaGetRssi, req_wifi_sta_get_rssi,
+    RPC_TEMPLATE_SIMPLE(RpcRespWifiStaGetRssi, resp_wifi_sta_get_rssi,
+                        RpcReqWifiStaGetRssi, req_wifi_sta_get_rssi,
                         rpc__resp__wifi_sta_get_rssi__init);
 
     int rssi;
@@ -1566,7 +1699,8 @@ static esp_err_t req_wifi_sta_get_rssi(Rpc* req, Rpc* resp, void* priv_data) {
 }
 
 static esp_err_t req_wifi_sta_get_aid(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE_SIMPLE(RpcRespWifiStaGetAid, resp_wifi_sta_get_aid, RpcReqWifiStaGetAid, req_wifi_sta_get_aid,
+    RPC_TEMPLATE_SIMPLE(RpcRespWifiStaGetAid, resp_wifi_sta_get_aid,
+                        RpcReqWifiStaGetAid, req_wifi_sta_get_aid,
                         rpc__resp__wifi_sta_get_aid__init);
 
     uint16_t aid;
@@ -1591,8 +1725,9 @@ static esp_err_t req_wifi_sta_get_negotiated_phymode(Rpc* req, Rpc* resp, void* 
 }
 
 static esp_err_t req_wifi_set_protocols(Rpc* req, Rpc* resp, void* priv_data) {
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
-    RPC_TEMPLATE(RpcRespWifiSetProtocols, resp_wifi_set_protocols, RpcReqWifiSetProtocols, req_wifi_set_protocols,
+    #if H_PRESENT_IN_ESP_IDF_5_4_0
+    RPC_TEMPLATE(RpcRespWifiSetProtocols, resp_wifi_set_protocols,
+                 RpcReqWifiSetProtocols, req_wifi_set_protocols,
                  rpc__resp__wifi_set_protocols__init);
 
     RPC_RET_FAIL_IF(!req_payload->protocols);
@@ -1610,14 +1745,15 @@ static esp_err_t req_wifi_set_protocols(Rpc* req, Rpc* resp, void* priv_data) {
     RPC_RET_FAIL_IF(esp_wifi_set_protocols(ifx, &protocols));
 
     return ESP_OK;
-#else
+    #else
     return ESP_FAIL;
-#endif
+    #endif
 }
 
 static esp_err_t req_wifi_get_protocols(Rpc* req, Rpc* resp, void* priv_data) {
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
-    RPC_TEMPLATE(RpcRespWifiGetProtocols, resp_wifi_get_protocols, RpcReqWifiGetProtocols, req_wifi_get_protocols,
+    #if H_PRESENT_IN_ESP_IDF_5_4_0
+    RPC_TEMPLATE(RpcRespWifiGetProtocols, resp_wifi_get_protocols,
+                 RpcReqWifiGetProtocols, req_wifi_get_protocols,
                  rpc__resp__wifi_get_protocols__init);
 
     wifi_interface_t ifx;
@@ -1635,14 +1771,15 @@ static esp_err_t req_wifi_get_protocols(Rpc* req, Rpc* resp, void* priv_data) {
     ESP_LOGI(TAG, "get protocols: ghz_2g %d, ghz_5g %d", protocols.ghz_2g, protocols.ghz_5g);
 err:
     return ESP_OK;
-#else
+    #else
     return ESP_FAIL;
-#endif
+    #endif
 }
 
 static esp_err_t req_wifi_set_bandwidths(Rpc* req, Rpc* resp, void* priv_data) {
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
-    RPC_TEMPLATE(RpcRespWifiSetBandwidths, resp_wifi_set_bandwidths, RpcReqWifiSetBandwidths, req_wifi_set_bandwidths,
+    #if H_PRESENT_IN_ESP_IDF_5_4_0
+    RPC_TEMPLATE(RpcRespWifiSetBandwidths, resp_wifi_set_bandwidths,
+                 RpcReqWifiSetBandwidths, req_wifi_set_bandwidths,
                  rpc__resp__wifi_set_bandwidths__init);
 
     RPC_RET_FAIL_IF(!req_payload->bandwidths);
@@ -1661,14 +1798,15 @@ static esp_err_t req_wifi_set_bandwidths(Rpc* req, Rpc* resp, void* priv_data) {
     RPC_RET_FAIL_IF(esp_wifi_set_bandwidths(ifx, &bw));
 
     return ESP_OK;
-#else
+    #else
     return ESP_FAIL;
-#endif
+    #endif
 }
 
 static esp_err_t req_wifi_get_bandwidths(Rpc* req, Rpc* resp, void* priv_data) {
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
-    RPC_TEMPLATE(RpcRespWifiGetBandwidths, resp_wifi_get_bandwidths, RpcReqWifiGetBandwidths, req_wifi_get_bandwidths,
+    #if H_PRESENT_IN_ESP_IDF_5_4_0
+    RPC_TEMPLATE(RpcRespWifiGetBandwidths, resp_wifi_get_bandwidths,
+                 RpcReqWifiGetBandwidths, req_wifi_get_bandwidths,
                  rpc__resp__wifi_get_bandwidths__init);
 
     wifi_interface_t ifx;
@@ -1687,14 +1825,15 @@ static esp_err_t req_wifi_get_bandwidths(Rpc* req, Rpc* resp, void* priv_data) {
     ESP_LOGI(TAG, "get bandwidths: ghz_2g %d, ghz_5g %d", bw.ghz_2g, bw.ghz_5g);
 err:
     return ESP_OK;
-#else
+    #else
     return ESP_FAIL;
-#endif
+    #endif
 }
 
 static esp_err_t req_wifi_set_band(Rpc* req, Rpc* resp, void* priv_data) {
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
-    RPC_TEMPLATE(RpcRespWifiSetBand, resp_wifi_set_band, RpcReqWifiSetBand, req_wifi_set_band,
+    #if H_PRESENT_IN_ESP_IDF_5_4_0
+    RPC_TEMPLATE(RpcRespWifiSetBand, resp_wifi_set_band,
+                 RpcReqWifiSetBand, req_wifi_set_band,
                  rpc__resp__wifi_set_band__init);
 
     wifi_band_t band;
@@ -1705,14 +1844,15 @@ static esp_err_t req_wifi_set_band(Rpc* req, Rpc* resp, void* priv_data) {
     RPC_RET_FAIL_IF(esp_wifi_set_band(band));
 
     return ESP_OK;
-#else
+    #else
     return ESP_FAIL;
-#endif
+    #endif
 }
 
 static esp_err_t req_wifi_get_band(Rpc* req, Rpc* resp, void* priv_data) {
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
-    RPC_TEMPLATE_SIMPLE(RpcRespWifiGetBand, resp_wifi_get_band, RpcReqWifiGetBand, req_wifi_get_band,
+    #if H_PRESENT_IN_ESP_IDF_5_4_0
+    RPC_TEMPLATE_SIMPLE(RpcRespWifiGetBand, resp_wifi_get_band,
+                        RpcReqWifiGetBand, req_wifi_get_band,
                         rpc__resp__wifi_get_band__init);
 
     wifi_band_t band;
@@ -1723,14 +1863,15 @@ static esp_err_t req_wifi_get_band(Rpc* req, Rpc* resp, void* priv_data) {
     ESP_LOGW(TAG, "get band: %d", band);
 
     return ESP_OK;
-#else
+    #else
     return ESP_FAIL;
-#endif
+    #endif
 }
 
 static esp_err_t req_wifi_set_band_mode(Rpc* req, Rpc* resp, void* priv_data) {
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
-    RPC_TEMPLATE(RpcRespWifiSetBandMode, resp_wifi_set_bandmode, RpcReqWifiSetBandMode, req_wifi_set_bandmode,
+    #if H_PRESENT_IN_ESP_IDF_5_4_0
+    RPC_TEMPLATE(RpcRespWifiSetBandMode, resp_wifi_set_bandmode,
+                 RpcReqWifiSetBandMode, req_wifi_set_bandmode,
                  rpc__resp__wifi_set_band_mode__init);
 
     wifi_band_mode_t band_mode;
@@ -1741,14 +1882,15 @@ static esp_err_t req_wifi_set_band_mode(Rpc* req, Rpc* resp, void* priv_data) {
     RPC_RET_FAIL_IF(esp_wifi_set_band_mode(band_mode));
 
     return ESP_OK;
-#else
+    #else
     return ESP_FAIL;
-#endif
+    #endif
 }
 
 static esp_err_t req_wifi_get_band_mode(Rpc* req, Rpc* resp, void* priv_data) {
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
-    RPC_TEMPLATE_SIMPLE(RpcRespWifiGetBandMode, resp_wifi_get_bandmode, RpcReqWifiGetBandMode, req_wifi_get_bandmode,
+    #if H_PRESENT_IN_ESP_IDF_5_4_0
+    RPC_TEMPLATE_SIMPLE(RpcRespWifiGetBandMode, resp_wifi_get_bandmode,
+                        RpcReqWifiGetBandMode, req_wifi_get_bandmode,
                         rpc__resp__wifi_get_band_mode__init);
 
     wifi_band_mode_t band_mode;
@@ -1759,14 +1901,15 @@ static esp_err_t req_wifi_get_band_mode(Rpc* req, Rpc* resp, void* priv_data) {
     ESP_LOGW(TAG, "get band_mode: %d", band_mode);
 
     return ESP_OK;
-#else
+    #else
     return ESP_FAIL;
-#endif
+    #endif
 }
 
 static esp_err_t req_get_coprocessor_fw_version(Rpc* req, Rpc* resp, void* priv_data) {
-    RPC_TEMPLATE_SIMPLE(RpcRespGetCoprocessorFwVersion, resp_get_coprocessor_fwversion, RpcReqGetCoprocessorFwVersion,
-                        req_get_coprocessor_fwversion, rpc__resp__get_coprocessor_fw_version__init);
+    RPC_TEMPLATE_SIMPLE(RpcRespGetCoprocessorFwVersion, resp_get_coprocessor_fwversion,
+                        RpcReqGetCoprocessorFwVersion, req_get_coprocessor_fwversion,
+                        rpc__resp__get_coprocessor_fw_version__init);
 
     resp_payload->major1 = PROJECT_VERSION_MAJOR_1;
     resp_payload->minor1 = PROJECT_VERSION_MINOR_1;
@@ -1779,72 +1922,237 @@ static esp_err_t req_get_coprocessor_fw_version(Rpc* req, Rpc* resp, void* priv_
 #if 0
 static esp_err_t req_wifi_(Rpc *req, Rpc *resp, void *priv_data)
 {
-	RPC_TEMPLATE(RpcRespWifi, resp_wifi_,
-			RpcReqWifi, req_wifi_,
-			rpc__resp__wifi___init);
+    RPC_TEMPLATE(RpcRespWifi, resp_wifi_,
+            RpcReqWifi, req_wifi_,
+            rpc__resp__wifi___init);
 
-	RPC_RET_FAIL_IF(esp_wifi_(&cfg));
+    RPC_RET_FAIL_IF(esp_wifi_(&cfg));
 
-	return ESP_OK;
+    return ESP_OK;
 }
 #endif
 
 static esp_rpc_req_t const req_table[] = {
-    {              .req_num = RPC_ID__Req_GetMACAddress,                    .command_handler = req_wifi_get_mac},
-    {                .req_num = RPC_ID__Req_GetWifiMode,                   .command_handler = req_wifi_get_mode},
-    {                .req_num = RPC_ID__Req_SetWifiMode,                   .command_handler = req_wifi_set_mode},
-    {              .req_num = RPC_ID__Req_SetMacAddress,                    .command_handler = req_wifi_set_mac},
-    {                  .req_num = RPC_ID__Req_WifiSetPs,                     .command_handler = req_wifi_set_ps},
-    {                  .req_num = RPC_ID__Req_WifiGetPs,                     .command_handler = req_wifi_get_ps},
-    {                   .req_num = RPC_ID__Req_OTABegin,               .command_handler = req_ota_begin_handler},
-    {                   .req_num = RPC_ID__Req_OTAWrite,               .command_handler = req_ota_write_handler},
-    {                     .req_num = RPC_ID__Req_OTAEnd,                 .command_handler = req_ota_end_handler},
-    {          .req_num = RPC_ID__Req_WifiSetMaxTxPower,           .command_handler = req_wifi_set_max_tx_power},
-    {          .req_num = RPC_ID__Req_WifiGetMaxTxPower,           .command_handler = req_wifi_get_max_tx_power},
-    {            .req_num = RPC_ID__Req_ConfigHeartbeat,                .command_handler = req_config_heartbeat},
-    {                   .req_num = RPC_ID__Req_WifiInit,                       .command_handler = req_wifi_init},
-    {                 .req_num = RPC_ID__Req_WifiDeinit,                     .command_handler = req_wifi_deinit},
-    {                  .req_num = RPC_ID__Req_WifiStart,                      .command_handler = req_wifi_start},
-    {                   .req_num = RPC_ID__Req_WifiStop,                       .command_handler = req_wifi_stop},
-    {                .req_num = RPC_ID__Req_WifiConnect,                    .command_handler = req_wifi_connect},
-    {             .req_num = RPC_ID__Req_WifiDisconnect,                 .command_handler = req_wifi_disconnect},
-    {              .req_num = RPC_ID__Req_WifiSetConfig,                 .command_handler = req_wifi_set_config},
-    {              .req_num = RPC_ID__Req_WifiGetConfig,                 .command_handler = req_wifi_get_config},
-    {              .req_num = RPC_ID__Req_WifiScanStart,                 .command_handler = req_wifi_scan_start},
-    {               .req_num = RPC_ID__Req_WifiScanStop,                  .command_handler = req_wifi_scan_stop},
-    {           .req_num = RPC_ID__Req_WifiScanGetApNum,            .command_handler = req_wifi_scan_get_ap_num},
-    {        .req_num = RPC_ID__Req_WifiScanGetApRecord,         .command_handler = req_wifi_scan_get_ap_record},
-    {       .req_num = RPC_ID__Req_WifiScanGetApRecords,        .command_handler = req_wifi_scan_get_ap_records},
-    {            .req_num = RPC_ID__Req_WifiClearApList,              .command_handler = req_wifi_clear_ap_list},
-    {                .req_num = RPC_ID__Req_WifiRestore,                    .command_handler = req_wifi_restore},
-    {       .req_num = RPC_ID__Req_WifiClearFastConnect,         .command_handler = req_wifi_clear_fast_connect},
-    {           .req_num = RPC_ID__Req_WifiStaGetApInfo,            .command_handler = req_wifi_sta_get_ap_info},
-    {              .req_num = RPC_ID__Req_WifiDeauthSta,                 .command_handler = req_wifi_deauth_sta},
-    {             .req_num = RPC_ID__Req_WifiSetStorage,                .command_handler = req_wifi_set_storage},
-    {            .req_num = RPC_ID__Req_WifiSetProtocol,               .command_handler = req_wifi_set_protocol},
-    {            .req_num = RPC_ID__Req_WifiGetProtocol,               .command_handler = req_wifi_get_protocol},
-    {           .req_num = RPC_ID__Req_WifiSetBandwidth,              .command_handler = req_wifi_set_bandwidth},
-    {           .req_num = RPC_ID__Req_WifiGetBandwidth,              .command_handler = req_wifi_get_bandwidth},
-    {             .req_num = RPC_ID__Req_WifiSetChannel,                .command_handler = req_wifi_set_channel},
-    {             .req_num = RPC_ID__Req_WifiGetChannel,                .command_handler = req_wifi_get_channel},
-    {         .req_num = RPC_ID__Req_WifiSetCountryCode,           .command_handler = req_wifi_set_country_code},
-    {         .req_num = RPC_ID__Req_WifiGetCountryCode,           .command_handler = req_wifi_get_country_code},
-    {             .req_num = RPC_ID__Req_WifiSetCountry,                .command_handler = req_wifi_set_country},
-    {             .req_num = RPC_ID__Req_WifiGetCountry,                .command_handler = req_wifi_get_country},
-    {           .req_num = RPC_ID__Req_WifiApGetStaList,            .command_handler = req_wifi_ap_get_sta_list},
-    {            .req_num = RPC_ID__Req_WifiApGetStaAid,             .command_handler = req_wifi_ap_get_sta_aid},
-    {             .req_num = RPC_ID__Req_WifiStaGetRssi,               .command_handler = req_wifi_sta_get_rssi},
-    {              .req_num = RPC_ID__Req_WifiStaGetAid,                .command_handler = req_wifi_sta_get_aid},
-    {.req_num = RPC_ID__Req_WifiStaGetNegotiatedPhymode, .command_handler = req_wifi_sta_get_negotiated_phymode},
-    {           .req_num = RPC_ID__Req_WifiSetProtocols,              .command_handler = req_wifi_set_protocols},
-    {           .req_num = RPC_ID__Req_WifiGetProtocols,              .command_handler = req_wifi_get_protocols},
-    {          .req_num = RPC_ID__Req_WifiSetBandwidths,             .command_handler = req_wifi_set_bandwidths},
-    {          .req_num = RPC_ID__Req_WifiGetBandwidths,             .command_handler = req_wifi_get_bandwidths},
-    {                .req_num = RPC_ID__Req_WifiSetBand,                   .command_handler = req_wifi_set_band},
-    {                .req_num = RPC_ID__Req_WifiGetBand,                   .command_handler = req_wifi_get_band},
-    {            .req_num = RPC_ID__Req_WifiSetBandMode,              .command_handler = req_wifi_set_band_mode},
-    {            .req_num = RPC_ID__Req_WifiGetBandMode,              .command_handler = req_wifi_get_band_mode},
-    {    .req_num = RPC_ID__Req_GetCoprocessorFwVersion,      .command_handler = req_get_coprocessor_fw_version},
+    {
+        .req_num = RPC_ID__Req_GetMACAddress,
+        .command_handler = req_wifi_get_mac
+    },
+    {
+        .req_num = RPC_ID__Req_GetWifiMode,
+        .command_handler = req_wifi_get_mode
+    },
+    {
+        .req_num = RPC_ID__Req_SetWifiMode,
+        .command_handler = req_wifi_set_mode
+    },
+    {
+        .req_num = RPC_ID__Req_SetMacAddress,
+        .command_handler = req_wifi_set_mac
+    },
+    {
+        .req_num = RPC_ID__Req_WifiSetPs,
+        .command_handler = req_wifi_set_ps
+    },
+    {
+        .req_num = RPC_ID__Req_WifiGetPs,
+        .command_handler = req_wifi_get_ps
+    },
+    {
+        .req_num = RPC_ID__Req_OTABegin,
+        .command_handler = req_ota_begin_handler
+    },
+    {
+        .req_num = RPC_ID__Req_OTAWrite,
+        .command_handler = req_ota_write_handler
+    },
+    {
+        .req_num = RPC_ID__Req_OTAEnd,
+        .command_handler = req_ota_end_handler
+    },
+    {
+        .req_num = RPC_ID__Req_WifiSetMaxTxPower,
+        .command_handler = req_wifi_set_max_tx_power
+    },
+    {
+        .req_num = RPC_ID__Req_WifiGetMaxTxPower,
+        .command_handler = req_wifi_get_max_tx_power
+    },
+    {
+        .req_num = RPC_ID__Req_ConfigHeartbeat,
+        .command_handler = req_config_heartbeat
+    },
+    {
+        .req_num = RPC_ID__Req_WifiInit,
+        .command_handler = req_wifi_init
+    },
+    {
+        .req_num = RPC_ID__Req_WifiDeinit,
+        .command_handler = req_wifi_deinit
+    },
+    {
+        .req_num = RPC_ID__Req_WifiStart,
+        .command_handler = req_wifi_start
+    },
+    {
+        .req_num = RPC_ID__Req_WifiStop,
+        .command_handler = req_wifi_stop
+    },
+    {
+        .req_num = RPC_ID__Req_WifiConnect,
+        .command_handler = req_wifi_connect
+    },
+    {
+        .req_num = RPC_ID__Req_WifiDisconnect,
+        .command_handler = req_wifi_disconnect
+    },
+    {
+        .req_num = RPC_ID__Req_WifiSetConfig,
+        .command_handler = req_wifi_set_config
+    },
+    {
+        .req_num = RPC_ID__Req_WifiGetConfig,
+        .command_handler = req_wifi_get_config
+    },
+    {
+        .req_num = RPC_ID__Req_WifiScanStart,
+        .command_handler = req_wifi_scan_start
+    },
+    {
+        .req_num = RPC_ID__Req_WifiScanStop,
+        .command_handler = req_wifi_scan_stop
+    },
+    {
+        .req_num = RPC_ID__Req_WifiScanGetApNum,
+        .command_handler = req_wifi_scan_get_ap_num
+    },
+    {
+        .req_num = RPC_ID__Req_WifiScanGetApRecord,
+        .command_handler = req_wifi_scan_get_ap_record
+    },
+    {
+        .req_num = RPC_ID__Req_WifiScanGetApRecords,
+        .command_handler = req_wifi_scan_get_ap_records
+    },
+    {
+        .req_num = RPC_ID__Req_WifiClearApList,
+        .command_handler = req_wifi_clear_ap_list
+    },
+    {
+        .req_num = RPC_ID__Req_WifiRestore,
+        .command_handler = req_wifi_restore
+    },
+    {
+        .req_num = RPC_ID__Req_WifiClearFastConnect,
+        .command_handler = req_wifi_clear_fast_connect
+    },
+    {
+        .req_num = RPC_ID__Req_WifiStaGetApInfo,
+        .command_handler = req_wifi_sta_get_ap_info
+    },
+    {
+        .req_num = RPC_ID__Req_WifiDeauthSta,
+        .command_handler = req_wifi_deauth_sta
+    },
+    {
+        .req_num = RPC_ID__Req_WifiSetStorage,
+        .command_handler = req_wifi_set_storage
+    },
+    {
+        .req_num = RPC_ID__Req_WifiSetProtocol,
+        .command_handler = req_wifi_set_protocol
+    },
+    {
+        .req_num = RPC_ID__Req_WifiGetProtocol,
+        .command_handler = req_wifi_get_protocol
+    },
+    {
+        .req_num = RPC_ID__Req_WifiSetBandwidth,
+        .command_handler = req_wifi_set_bandwidth
+    },
+    {
+        .req_num = RPC_ID__Req_WifiGetBandwidth,
+        .command_handler = req_wifi_get_bandwidth
+    },
+    {
+        .req_num = RPC_ID__Req_WifiSetChannel,
+        .command_handler = req_wifi_set_channel
+    },
+    {
+        .req_num = RPC_ID__Req_WifiGetChannel,
+        .command_handler = req_wifi_get_channel
+    },
+    {
+        .req_num = RPC_ID__Req_WifiSetCountryCode,
+        .command_handler = req_wifi_set_country_code
+    },
+    {
+        .req_num = RPC_ID__Req_WifiGetCountryCode,
+        .command_handler = req_wifi_get_country_code
+    },
+    {
+        .req_num = RPC_ID__Req_WifiSetCountry,
+        .command_handler = req_wifi_set_country
+    },
+    {
+        .req_num = RPC_ID__Req_WifiGetCountry,
+        .command_handler = req_wifi_get_country
+    },
+    {
+        .req_num = RPC_ID__Req_WifiApGetStaList,
+        .command_handler = req_wifi_ap_get_sta_list
+    },
+    {
+        .req_num = RPC_ID__Req_WifiApGetStaAid,
+        .command_handler = req_wifi_ap_get_sta_aid
+    },
+    {
+        .req_num = RPC_ID__Req_WifiStaGetRssi,
+        .command_handler = req_wifi_sta_get_rssi
+    },
+    {
+        .req_num = RPC_ID__Req_WifiStaGetAid,
+        .command_handler = req_wifi_sta_get_aid
+    },
+    {
+        .req_num = RPC_ID__Req_WifiStaGetNegotiatedPhymode,
+        .command_handler = req_wifi_sta_get_negotiated_phymode
+    },
+    {
+        .req_num = RPC_ID__Req_WifiSetProtocols,
+        .command_handler = req_wifi_set_protocols
+    },
+    {
+        .req_num = RPC_ID__Req_WifiGetProtocols,
+        .command_handler = req_wifi_get_protocols
+    },
+    {
+        .req_num = RPC_ID__Req_WifiSetBandwidths,
+        .command_handler = req_wifi_set_bandwidths
+    },
+    {
+        .req_num = RPC_ID__Req_WifiGetBandwidths,
+        .command_handler = req_wifi_get_bandwidths
+    },
+    {
+        .req_num = RPC_ID__Req_WifiSetBand,
+        .command_handler = req_wifi_set_band
+    },
+    {
+        .req_num = RPC_ID__Req_WifiGetBand,
+        .command_handler = req_wifi_get_band
+    },
+    {
+        .req_num = RPC_ID__Req_WifiSetBandMode,
+        .command_handler = req_wifi_set_band_mode
+    },
+    {
+        .req_num = RPC_ID__Req_WifiGetBandMode,
+        .command_handler = req_wifi_get_band_mode
+    },
+    {
+        .req_num = RPC_ID__Req_GetCoprocessorFwVersion,
+        .command_handler = req_get_coprocessor_fw_version
+    },
 };
 
 static int lookup_req_handler(int req_id) {
@@ -1898,7 +2206,8 @@ static void esp_rpc_cleanup(Rpc* resp) {
     }
 }
 
-esp_err_t data_transfer_handler(uint32_t session_id, uint8_t const* inbuf, ssize_t inlen, uint8_t** outbuf,
+esp_err_t data_transfer_handler(uint32_t session_id, uint8_t const* inbuf,
+                                ssize_t inlen, uint8_t** outbuf,
                                 ssize_t* outlen, void* priv_data) {
     Rpc* req;
     esp_err_t ret;
@@ -1995,13 +2304,17 @@ static esp_err_t rpc_evt_heartbeat(Rpc* ntfy) {
     return ESP_OK;
 }
 
-static esp_err_t rpc_evt_sta_scan_done(Rpc* ntfy, uint8_t const* data, ssize_t len, int event_id) {
+static esp_err_t rpc_evt_sta_scan_done(Rpc* ntfy,
+                                       uint8_t const* data, ssize_t len, int event_id) {
     WifiEventStaScanDone*       p_c_scan = NULL;
     wifi_event_sta_scan_done_t* p_a      = (wifi_event_sta_scan_done_t*)data;
 
-    NTFY_TEMPLATE(RPC_ID__Event_StaScanDone, RpcEventStaScanDone, event_sta_scan_done, rpc__event__sta_scan_done__init);
+    NTFY_TEMPLATE(RPC_ID__Event_StaScanDone,
+                  RpcEventStaScanDone, event_sta_scan_done,
+                  rpc__event__sta_scan_done__init);
 
-    NTFY_ALLOC_ELEMENT(WifiEventStaScanDone, ntfy_payload->scan_done, wifi_event_sta_scan_done__init);
+    NTFY_ALLOC_ELEMENT(WifiEventStaScanDone, ntfy_payload->scan_done,
+                       wifi_event_sta_scan_done__init);
     p_c_scan = ntfy_payload->scan_done;
 
     p_c_scan->status  = p_a->status;
@@ -2012,14 +2325,17 @@ err:
     return ESP_OK;
 }
 
-static esp_err_t rpc_evt_sta_connected(Rpc* ntfy, uint8_t const* data, ssize_t len, int event_id) {
+static esp_err_t rpc_evt_sta_connected(Rpc* ntfy,
+                                       uint8_t const* data, ssize_t len, int event_id) {
     WifiEventStaConnected*      p_c = NULL;
     wifi_event_sta_connected_t* p_a = (wifi_event_sta_connected_t*)data;
 
-    NTFY_TEMPLATE(RPC_ID__Event_StaConnected, RpcEventStaConnected, event_sta_connected,
+    NTFY_TEMPLATE(RPC_ID__Event_StaConnected,
+                  RpcEventStaConnected, event_sta_connected,
                   rpc__event__sta_connected__init);
 
-    NTFY_ALLOC_ELEMENT(WifiEventStaConnected, ntfy_payload->sta_connected, wifi_event_sta_connected__init);
+    NTFY_ALLOC_ELEMENT(WifiEventStaConnected, ntfy_payload->sta_connected,
+                       wifi_event_sta_connected__init);
 
     p_c = ntfy_payload->sta_connected;
 
@@ -2037,14 +2353,17 @@ err:
     return ESP_OK;
 }
 
-static esp_err_t rpc_evt_sta_disconnected(Rpc* ntfy, uint8_t const* data, ssize_t len, int event_id) {
+static esp_err_t rpc_evt_sta_disconnected(Rpc* ntfy,
+                                          uint8_t const* data, ssize_t len, int event_id) {
     WifiEventStaDisconnected*      p_c = NULL;
     wifi_event_sta_disconnected_t* p_a = (wifi_event_sta_disconnected_t*)data;
 
-    NTFY_TEMPLATE(RPC_ID__Event_StaDisconnected, RpcEventStaDisconnected, event_sta_disconnected,
+    NTFY_TEMPLATE(RPC_ID__Event_StaDisconnected,
+                  RpcEventStaDisconnected, event_sta_disconnected,
                   rpc__event__sta_disconnected__init);
 
-    NTFY_ALLOC_ELEMENT(WifiEventStaDisconnected, ntfy_payload->sta_disconnected, wifi_event_sta_disconnected__init);
+    NTFY_ALLOC_ELEMENT(WifiEventStaDisconnected, ntfy_payload->sta_disconnected,
+                       wifi_event_sta_disconnected__init);
 
     p_c = ntfy_payload->sta_disconnected;
 
@@ -2061,11 +2380,13 @@ err:
     return ESP_OK;
 }
 
-static esp_err_t rpc_evt_ap_staconn_conn_disconn(Rpc* ntfy, uint8_t const* data, ssize_t len, int event_id) {
+static esp_err_t rpc_evt_ap_staconn_conn_disconn(Rpc* ntfy,
+                                                 uint8_t const* data, ssize_t len, int event_id) {
     ESP_LOGD(TAG, "%s event:%u", __func__, event_id);
 
     if (event_id == WIFI_EVENT_AP_STACONNECTED) {
-        NTFY_TEMPLATE(RPC_ID__Event_AP_StaConnected, RpcEventAPStaConnected, event_ap_sta_connected,
+        NTFY_TEMPLATE(RPC_ID__Event_AP_StaConnected,
+                      RpcEventAPStaConnected, event_ap_sta_connected,
                       rpc__event__ap__sta_connected__init);
 
         wifi_event_ap_staconnected_t* p_a = (wifi_event_ap_staconnected_t*)data;
@@ -2078,7 +2399,8 @@ static esp_err_t rpc_evt_ap_staconn_conn_disconn(Rpc* ntfy, uint8_t const* data,
         return ESP_OK;
     }
     else if (event_id == WIFI_EVENT_AP_STADISCONNECTED) {
-        NTFY_TEMPLATE(RPC_ID__Event_AP_StaDisconnected, RpcEventAPStaDisconnected, event_ap_sta_disconnected,
+        NTFY_TEMPLATE(RPC_ID__Event_AP_StaDisconnected,
+                      RpcEventAPStaDisconnected, event_ap_sta_disconnected,
                       rpc__event__ap__sta_disconnected__init);
 
         wifi_event_ap_stadisconnected_t* p_a = (wifi_event_ap_stadisconnected_t*)data;
@@ -2094,8 +2416,10 @@ static esp_err_t rpc_evt_ap_staconn_conn_disconn(Rpc* ntfy, uint8_t const* data,
     return ESP_FAIL;
 }
 
-static esp_err_t rpc_evt_Event_WifiEventNoArgs(Rpc* ntfy, uint8_t const* data, ssize_t len) {
-    NTFY_TEMPLATE(RPC_ID__Event_WifiEventNoArgs, RpcEventWifiEventNoArgs, event_wifi_event_no_args,
+static esp_err_t rpc_evt_Event_WifiEventNoArgs(Rpc* ntfy,
+                                               uint8_t const* data, ssize_t len) {
+    NTFY_TEMPLATE(RPC_ID__Event_WifiEventNoArgs,
+                  RpcEventWifiEventNoArgs, event_wifi_event_no_args,
                   rpc__event__wifi_event_no_args__init);
 
     int32_t event_id = (int32_t)*data;
@@ -2106,8 +2430,8 @@ static esp_err_t rpc_evt_Event_WifiEventNoArgs(Rpc* ntfy, uint8_t const* data, s
     return ESP_OK;
 }
 
-esp_err_t rpc_evt_handler(uint32_t session_id, uint8_t const* inbuf, ssize_t inlen, uint8_t** outbuf, ssize_t* outlen,
-                          void* priv_data) {
+esp_err_t rpc_evt_handler(uint32_t session_id, uint8_t const* inbuf,
+                          ssize_t inlen, uint8_t** outbuf, ssize_t* outlen, void* priv_data) {
     int ret = SUCCESS;
 
     Rpc* ntfy = (Rpc*)calloc(1, sizeof(Rpc)); // ntfy deallocated in esp_rpc_cleanup()

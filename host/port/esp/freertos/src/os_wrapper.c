@@ -19,6 +19,7 @@
 #include "esp_log.h"
 #include "driver/gpio.h"
 #include "esp_event.h"
+#include "esp_heap_caps.h"
 #include "freertos/portmacro.h"
 #include "esp_macros.h"
 #include "esp_hosted_config.h"
@@ -49,7 +50,7 @@ DEFINE_LOG_TAG(os_wrapper_esp);
 struct mempool* nw_mp_g = NULL;
 
 wpa_crypto_funcs_t const g_wifi_default_wpa_crypto_funcs;
-wifi_osi_funcs_t         g_wifi_osi_funcs;
+wifi_osi_funcs_t g_wifi_osi_funcs;
 
 // ESP_EVENT_DECLARE_BASE(WIFI_EVENT);
 ESP_EVENT_DEFINE_BASE(WIFI_EVENT);
@@ -67,6 +68,7 @@ void* hosted_memcpy(void* dest, void const* src, uint32_t size) {
         if (!dest) {
             ESP_LOGE(TAG, "%s:%u dest is NULL\n", __func__, __LINE__);
         }
+
         if (!src) {
             ESP_LOGE(TAG, "%s:%u dest is NULL\n", __func__, __LINE__);
         }
@@ -124,20 +126,7 @@ void* hosted_realloc(void* mem, size_t newsize) {
 }
 
 void* hosted_malloc_align(size_t size, size_t align) {
-    esp_dma_mem_info_t dma_mem_info = {
-        .extra_heap_caps     = 0,
-        .dma_alignment_bytes = align,
-    };
-    void*     tmp_buf     = NULL;
-    size_t    actual_size = 0;
-    esp_err_t err         = ESP_OK;
-
-    err = esp_dma_capable_malloc((size), &dma_mem_info, &tmp_buf, &actual_size);
-    if (err) {
-        tmp_buf = NULL;
-    }
-
-    return tmp_buf;
+    return heap_caps_aligned_alloc(align, size, MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
 }
 
 void hosted_free_align(void* ptr) {
@@ -166,12 +155,12 @@ void* hosted_thread_create(char* tname, uint32_t tprio, uint32_t tstack_size, vo
     }
 
 #if 0
-	osThreadDef(
-			Ctrl_port_tsk,
-			start_routine,
-			CTRL_PATH_TASK_PRIO, 0,
-			CTRL_PATH_TASK_STACK_SIZE);
-	*thread_handle = osThreadCreate(osThread(Ctrl_port_tsk), arg);
+    osThreadDef(
+            Ctrl_port_tsk,
+            start_routine,
+            CTRL_PATH_TASK_PRIO, 0,
+            CTRL_PATH_TASK_STACK_SIZE);
+    *thread_handle = osThreadCreate(osThread(Ctrl_port_tsk), arg);
 #endif
     task_created = xTaskCreate((void (*)(void*))start_routine, tname, tstack_size, sr_arg, tprio, thread_handle);
     if (!(*thread_handle)) {
@@ -202,9 +191,9 @@ int hosted_thread_cancel(void* thread_handle) {
 
     // ret = osThreadTerminate(*thread_hdl);
     // if (ret) {
-    //	ESP_LOGE(TAG, "Prob in pthread_cancel, destroy handle anyway\n");
-    //	HOSTED_FREE(thread_handle);
-    //	return RET_INVALID;
+    //    ESP_LOGE(TAG, "Prob in pthread_cancel, destroy handle anyway\n");
+    //    HOSTED_FREE(thread_handle);
+    //    return RET_INVALID;
     // }
     vTaskDelete(*thread_hdl);
 
@@ -437,8 +426,8 @@ int hosted_destroy_mutex(void* mutex_handle) {
 
 /* -------- Semaphores ---------- */
 int hosted_post_semaphore(void* semaphore_handle) {
-    semaphore_handle_t* sem_id     = NULL;
-    int                 sem_posted = 0;
+    semaphore_handle_t* sem_id = NULL;
+    int sem_posted = 0;
 
     if (!semaphore_handle) {
         ESP_LOGE(TAG, "Uninitialized sem id 3\n");
@@ -455,9 +444,9 @@ int hosted_post_semaphore(void* semaphore_handle) {
 }
 
 FAST_RAM_ATTR int hosted_post_semaphore_from_isr(void* semaphore_handle) {
-    semaphore_handle_t* sem_id     = NULL;
-    int                 sem_posted = 0;
-    BaseType_t          mustYield  = false;
+    semaphore_handle_t* sem_id = NULL;
+    int sem_posted = 0;
+    BaseType_t mustYield = false;
 
     if (!semaphore_handle) {
         ESP_LOGE(TAG, "Uninitialized sem id 3\n");
@@ -474,6 +463,7 @@ FAST_RAM_ATTR int hosted_post_semaphore_from_isr(void* semaphore_handle) {
         portYIELD_FROM_ISR();
 #endif
     }
+
     if (pdTRUE == sem_posted) {
         return RET_OK;
     }
@@ -508,8 +498,8 @@ void* hosted_create_semaphore(int maxCount) {
 }
 
 int hosted_get_semaphore(void* semaphore_handle, int timeout) {
-    semaphore_handle_t* sem_id       = NULL;
-    int                 sem_acquired = 0;
+    semaphore_handle_t* sem_id = NULL;
+    int sem_acquired = 0;
 
     if (!semaphore_handle) {
         ESP_LOGE(TAG, "Uninitialized sem id 1\n\r");
@@ -542,7 +532,7 @@ int hosted_get_semaphore(void* semaphore_handle, int timeout) {
 }
 
 int hosted_destroy_semaphore(void* semaphore_handle) {
-    int                 ret    = RET_OK;
+    int ret = RET_OK;
     semaphore_handle_t* sem_id = NULL;
 
     if (!semaphore_handle) {
@@ -622,12 +612,12 @@ int hosted_timer_stop(void* timer_handle) {
  *
  * void expired(union sigval timer_data){
  *     struct mystruct *a = timer_data.sival_ptr;
- * 	ESP_LOGE(TAG, "Expired %u\n", a->mydata++);
+ *     ESP_LOGE(TAG, "Expired %u\n", a->mydata++);
  * }
  **/
 
 // void *hosted_timer_start(int duration, int type,
-//		void (*timeout_handler)(void const *), void *arg)
+//        void (*timeout_handler)(void const *), void *arg)
 void* hosted_timer_start(int duration, int type, void (*timeout_handler)(void*), void* arg) {
     struct timer_handle_t* timer_handle = NULL;
     int                    ret          = RET_OK;
@@ -639,7 +629,8 @@ void* hosted_timer_start(int duration, int type, void (*timeout_handler)(void*),
         .callback = timeout_handler,
         /* argument specified here will be passed to timer callback function */
         .arg  = (void*)arg,
-        .name = "one-shot"};
+        .name = "one-shot"
+    };
 
     /* alloc */
     timer_handle = (struct timer_handle_t*)hosted_malloc(sizeof(struct timer_handle_t));
@@ -700,7 +691,10 @@ int hosted_config_gpio(void* gpio_port, uint32_t gpio_num, uint32_t mode) {
 int hosted_config_gpio_as_interrupt(void* gpio_port, uint32_t gpio_num, uint32_t intr_type,
                                     void (*new_gpio_isr_handler)(void* arg)) {
     gpio_config_t new_gpio_io_conf = {
-        .intr_type = intr_type, .mode = GPIO_MODE_INPUT, .pin_bit_mask = (1ULL << gpio_num)};
+        .intr_type = intr_type,
+        .mode = GPIO_MODE_INPUT,
+        .pin_bit_mask = (1ULL << gpio_num)
+    };
 
     if (intr_type == H_GPIO_INTR_NEGEDGE) {
         new_gpio_io_conf.pull_down_en = 1;
@@ -727,7 +721,8 @@ int hosted_write_gpio(void* gpio_port, uint32_t gpio_num, uint32_t value) {
     return gpio_set_level(gpio_num, value);
 }
 
-int hosted_wifi_event_post(int32_t event_id, void* event_data, size_t event_data_size, uint32_t ticks_to_wait) {
+int hosted_wifi_event_post(int32_t event_id,
+                           void* event_data, size_t event_data_size, uint32_t ticks_to_wait) {
     ESP_LOGV(TAG, "event %ld recvd --> event_data:%p event_data_size: %u\n", event_id, event_data, event_data_size);
     return esp_event_post(WIFI_EVENT, event_id, event_data, event_data_size, ticks_to_wait);
 }

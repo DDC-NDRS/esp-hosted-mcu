@@ -17,6 +17,7 @@
 #include "hosted_os_abstraction.h"
 #include "esp_timer.h"
 #include "esp_event.h"
+#include "esp_heap_caps.h"
 #include "esp_netif_types.h"
 #include "esp_wifi_types.h"
 #include "esp_wifi_default.h"
@@ -65,8 +66,7 @@ enum {
     H_GPIO_MODE_DISABLE = H_GPIO_MODE_DEF_DISABLE, /*!< GPIO mode : disable input and output             */
     H_GPIO_MODE_INPUT   = H_GPIO_MODE_DEF_INPUT,   /*!< GPIO mode : input only                           */
     H_GPIO_MODE_OUTPUT  = H_GPIO_MODE_DEF_OUTPUT,  /*!< GPIO mode : output only mode                     */
-    H_GPIO_MODE_OUTPUT_OD =
-        ((H_GPIO_MODE_DEF_OUTPUT) | (H_GPIO_MODE_DEF_OD)), /*!< GPIO mode : output only with open-drain mode     */
+    H_GPIO_MODE_OUTPUT_OD = ((H_GPIO_MODE_DEF_OUTPUT) | (H_GPIO_MODE_DEF_OD)), /*!< GPIO mode : output only with open-drain mode     */
     H_GPIO_MODE_INPUT_OUTPUT_OD = ((H_GPIO_MODE_DEF_INPUT) | (H_GPIO_MODE_DEF_OUTPUT) |
                                    (H_GPIO_MODE_DEF_OD)), /*!< GPIO mode : output and input with open-drain mode*/
     H_GPIO_MODE_INPUT_OUTPUT =
@@ -101,20 +101,7 @@ enum {
 #define MALLOC(x) malloc(x)
 
 /* This is [malloc + aligned DMA] */
-#define MEM_ALLOC(x)                                                                                                   \
-    ({                                                                                                                 \
-        esp_dma_mem_info_t dma_mem_info = {                                                                            \
-            .extra_heap_caps     = 0,                                                                                  \
-            .dma_alignment_bytes = 64,                                                                                 \
-        };                                                                                                             \
-        void*     tmp_buf     = NULL;                                                                                  \
-        size_t    actual_size = 0;                                                                                     \
-        esp_err_t err         = ESP_OK;                                                                                \
-        err                   = esp_dma_capable_malloc((x), &dma_mem_info, &tmp_buf, &actual_size);                    \
-        if (err)                                                                                                       \
-            tmp_buf = NULL;                                                                                            \
-        tmp_buf;                                                                                                       \
-    })
+#define MEM_ALLOC(x)            heap_caps_aligned_alloc(64, (x), MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA | MALLOC_CAP_8BIT)
 
 #define FREE(x) free(x);
 
@@ -132,9 +119,10 @@ enum hardware_type_e {
 #define SEC_TO_MILLISEC(x) (1000 * (x))
 #define SEC_TO_MICROSEC(x) (1000 * 1000 * (x))
 
-#define MEM_DUMP(s)                                                                                                    \
-    printf("%s free:%lu min-free:%lu lfb-def:%u lfb-8bit:%u\n\n", s, (unsigned long int)esp_get_free_heap_size(),      \
-           (unsigned long int)esp_get_minimum_free_heap_size(), heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT),  \
+#define MEM_DUMP(s)                                             \
+    printf("%s free:%lu min-free:%lu lfb-def:%u lfb-8bit:%u\n\n", s, \
+           (unsigned long int)esp_get_free_heap_size(), (unsigned long int)esp_get_minimum_free_heap_size(), \
+           heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT),  \
            heap_caps_get_largest_free_block(MALLOC_CAP_8BIT))
 
 #if 0
@@ -146,37 +134,37 @@ enum hardware_type_e {
 #endif
 
 /* -------- Create handle ------- */
-#define HOSTED_CREATE_HANDLE(tYPE, hANDLE)                                                                             \
-    {                                                                                                                  \
-        hANDLE = (tYPE*)g_h.funcs->_h_malloc(sizeof(tYPE));                                                            \
-        if (!hANDLE) {                                                                                                 \
-            printf("%s:%u Mem alloc fail while create handle\n", __func__, __LINE__);                                  \
-            return NULL;                                                                                               \
-        }                                                                                                              \
+#define HOSTED_CREATE_HANDLE(tYPE, hANDLE) {                            \
+        hANDLE = (tYPE*)g_h.funcs->_h_malloc(sizeof(tYPE));             \
+        if (!hANDLE) {                                                  \
+            printf("%s:%u Mem alloc fail while create handle\n", __func__, __LINE__); \
+            return NULL;                                                \
+        }                                                               \
     }
 
 /* -------- Calloc, Free handle ------- */
-#define HOSTED_FREE(buff)                                                                                              \
-    if (buff) {                                                                                                        \
-        g_h.funcs->_h_free(buff);                                                                                      \
-        buff = NULL;                                                                                                   \
+#define HOSTED_FREE(buff)                                               \
+    if (buff) {                                                         \
+        g_h.funcs->_h_free(buff);                                       \
+        buff = NULL;                                                    \
     }
-#define HOSTED_CALLOC(struct_name, buff, nbytes, gotosym)                                                              \
-    do {                                                                                                               \
-        buff = (struct_name*)g_h.funcs->_h_calloc(1, nbytes);                                                          \
-        if (!buff) {                                                                                                   \
-            printf("%s, Failed to allocate memory \n", __func__);                                                      \
-            goto gotosym;                                                                                              \
-        }                                                                                                              \
+
+#define HOSTED_CALLOC(struct_name, buff, nbytes, gotosym)               \
+    do {                                                                \
+        buff = (struct_name*)g_h.funcs->_h_calloc(1, nbytes);           \
+        if (!buff) {                                                    \
+            printf("%s, Failed to allocate memory \n", __func__);       \
+            goto gotosym;                                               \
+        }                                                               \
     } while (0);
 
-#define HOSTED_MALLOC(struct_name, buff, nbytes, gotosym)                                                              \
-    do {                                                                                                               \
-        buff = (struct_name*)g_h.funcs->_h_malloc(nbytes);                                                             \
-        if (!buff) {                                                                                                   \
-            printf("%s, Failed to allocate memory \n", __func__);                                                      \
-            goto gotosym;                                                                                              \
-        }                                                                                                              \
+#define HOSTED_MALLOC(struct_name, buff, nbytes, gotosym)               \
+    do {                                                                \
+        buff = (struct_name*)g_h.funcs->_h_malloc(nbytes);              \
+        if (!buff) {                                                    \
+            printf("%s, Failed to allocate memory \n", __func__);       \
+            goto gotosym;                                               \
+        }                                                               \
     } while (0);
 
 /* Driver Handle */

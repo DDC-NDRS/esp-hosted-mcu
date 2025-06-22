@@ -57,6 +57,10 @@ static esp_err_t http_client_event_handler(esp_http_client_event_t* evt) {
         case HTTP_EVENT_REDIRECT :
             ESP_LOGW(TAG, "HTTP_EVENT_REDIRECT");
             break;
+        // Other trivial events like HTTP_EVENT_ON_HEADERS_COMPLETE can be handled when needed
+        default:
+            ESP_LOGD(TAG, "Unhandled event id: %d", evt->event_id);
+            break;
     }
 
     return ESP_OK;
@@ -102,14 +106,16 @@ static esp_err_t _hosted_ota(char const* image_url) {
     int64_t content_length = esp_http_client_fetch_headers(client);
     if (content_length <= 0) {
         ESP_LOGE(TAG, "HTTP client fetch headers failed");
-        ESP_LOGI(TAG, "HTTP GET Status = %d, content_length = %" PRId64, esp_http_client_get_status_code(client),
+        ESP_LOGI(TAG, "HTTP GET Status = %d, content_length = %" PRId64,
+                 esp_http_client_get_status_code(client),
                  esp_http_client_get_content_length(client));
         esp_http_client_close(client);
         esp_http_client_cleanup(client);
         return ESP_FAIL;
     }
 
-    ESP_LOGI(TAG, "HTTP GET Status = %d, content_length = %" PRId64, esp_http_client_get_status_code(client),
+    ESP_LOGI(TAG, "HTTP GET Status = %d, content_length = %" PRId64,
+             esp_http_client_get_status_code(client),
              esp_http_client_get_content_length(client));
 
     ESP_LOGW(TAG, "********* Started Slave OTA *******************");

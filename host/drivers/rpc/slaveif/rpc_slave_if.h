@@ -44,12 +44,13 @@ extern "C" {
  * another request is pending, time period for
  * which new request will wait in seconds
  * */
-// #define WAIT_TIME_B2B_RPC_REQ               5
+// #define WAIT_TIME_B2B_RPC_REQ            5
 #define DEFAULT_RPC_RSP_TIMEOUT 5
+#define DEFAULT_RPC_RSP_SCAN_TIMEOUT        30
 
-#define SUCCESS_STR       "success"
-#define FAILURE_STR       "failure"
-#define NOT_CONNECTED_STR "not_connected"
+#define SUCCESS_STR                          "success"
+#define FAILURE_STR                          "failure"
+#define NOT_CONNECTED_STR                    "not_connected"
 
 #define RPC_RX_QUEUE_SIZE 3
 #define RPC_TX_QUEUE_SIZE 5

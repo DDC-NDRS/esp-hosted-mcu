@@ -8,18 +8,17 @@
 #include "esp_hosted_wifi_config.h"
 #include "esp_hosted_transport.h"
 #include "esp_hosted_bitmasks.h"
-#include "esp_idf_version.h"
 
 DEFINE_LOG_TAG(rpc_req);
 
-#define ADD_RPC_BUFF_TO_FREE_LATER(BuFf)                                                                               \
-    {                                                                                                                  \
+#define ADD_RPC_BUFF_TO_FREE_LATER(BuFf) {                                                                             \
         assert((app_req->n_rpc_free_buff_hdls + 1) <= MAX_FREE_BUFF_HANDLES);                                          \
         app_req->rpc_free_buff_hdls[app_req->n_rpc_free_buff_hdls++] = BuFf;                                           \
     }
 
 #define RPC_ALLOC_ASSIGN(TyPe, MsG_StRuCt, InItFuNc)                                                                   \
-    TyPe* req_payload = (TyPe*)g_h.funcs->_h_calloc(1, sizeof(TyPe));                                                  \
+    TyPe* req_payload = (TyPe*)                                                                                        \
+        g_h.funcs->_h_calloc(1, sizeof(TyPe));                                                                         \
     if (!req_payload) {                                                                                                \
         ESP_LOGE(TAG, "Failed to allocate memory for req->%s\n", #MsG_StRuCt);                                         \
         *failure_status = RPC_ERR_MEMORY_FAILURE;                                                                      \
@@ -30,8 +29,7 @@ DEFINE_LOG_TAG(rpc_req);
     ADD_RPC_BUFF_TO_FREE_LATER((uint8_t*)req_payload);
 
 // TODO: How this is different in slave_control.c
-#define RPC_ALLOC_ELEMENT(TyPe, MsG_StRuCt, InIt_FuN)                                                                  \
-    {                                                                                                                  \
+#define RPC_ALLOC_ELEMENT(TyPe, MsG_StRuCt, InIt_FuN) {                                                                \
         TyPe* NeW_AllocN = (TyPe*)g_h.funcs->_h_calloc(1, sizeof(TyPe));                                               \
         if (!NeW_AllocN) {                                                                                             \
             ESP_LOGE(TAG, "Failed to allocate memory for req->%s\n", #MsG_StRuCt);                                     \
@@ -91,25 +89,31 @@ int compose_rpc_req(Rpc* req, ctrl_cmd_t* app_req, int32_t* failure_status) {
             /* Intentional fallthrough & empty */
             break;
         }
+
         case RPC_ID__Req_GetMACAddress : {
-            RPC_ALLOC_ASSIGN(RpcReqGetMacAddress, req_get_mac_address, rpc__req__get_mac_address__init);
+            RPC_ALLOC_ASSIGN(RpcReqGetMacAddress, req_get_mac_address,
+                             rpc__req__get_mac_address__init);
 
             req_payload->mode = app_req->u.wifi_mac.mode;
 
             break;
         }
+
         case RPC_ID__Req_SetMacAddress : {
             wifi_mac_t* p = &app_req->u.wifi_mac;
-            RPC_ALLOC_ASSIGN(RpcReqSetMacAddress, req_set_mac_address, rpc__req__set_mac_address__init);
+            RPC_ALLOC_ASSIGN(RpcReqSetMacAddress, req_set_mac_address,
+                             rpc__req__set_mac_address__init);
 
             req_payload->mode = p->mode;
             RPC_REQ_COPY_BYTES(req_payload->mac, p->mac, BSSID_BYTES_SIZE);
 
             break;
         }
+
         case RPC_ID__Req_SetWifiMode : {
             hosted_mode_t* p = &app_req->u.wifi_mode;
-            RPC_ALLOC_ASSIGN(RpcReqSetMode, req_set_wifi_mode, rpc__req__set_mode__init);
+            RPC_ALLOC_ASSIGN(RpcReqSetMode, req_set_wifi_mode,
+                             rpc__req__set_mode__init);
 
             if ((p->mode < WIFI_MODE_NULL) || (p->mode >= WIFI_MODE_MAX)) {
                 ESP_LOGE(TAG, "Invalid wifi mode\n");
@@ -119,16 +123,20 @@ int compose_rpc_req(Rpc* req, ctrl_cmd_t* app_req, int32_t* failure_status) {
             req_payload->mode = p->mode;
             break;
         }
+
         case RPC_ID__Req_WifiSetPs : {
             wifi_power_save_t* p = &app_req->u.wifi_ps;
-            RPC_ALLOC_ASSIGN(RpcReqSetPs, req_wifi_set_ps, rpc__req__set_ps__init);
+            RPC_ALLOC_ASSIGN(RpcReqSetPs, req_wifi_set_ps,
+                             rpc__req__set_ps__init);
 
             req_payload->type = p->ps_mode;
             break;
         }
+
         case RPC_ID__Req_OTAWrite : {
             ota_write_t* p = &app_req->u.ota_write;
-            RPC_ALLOC_ASSIGN(RpcReqOTAWrite, req_ota_write, rpc__req__otawrite__init);
+            RPC_ALLOC_ASSIGN(RpcReqOTAWrite, req_ota_write,
+                             rpc__req__otawrite__init);
 
             if (!p->ota_data || (p->ota_data_len == 0)) {
                 ESP_LOGE(TAG, "Invalid parameter\n");
@@ -140,13 +148,18 @@ int compose_rpc_req(Rpc* req, ctrl_cmd_t* app_req, int32_t* failure_status) {
             req_payload->ota_data.len  = p->ota_data_len;
             break;
         }
+
         case RPC_ID__Req_WifiSetMaxTxPower : {
-            RPC_ALLOC_ASSIGN(RpcReqWifiSetMaxTxPower, req_set_wifi_max_tx_power, rpc__req__wifi_set_max_tx_power__init);
+            RPC_ALLOC_ASSIGN(RpcReqWifiSetMaxTxPower,
+                             req_set_wifi_max_tx_power,
+                             rpc__req__wifi_set_max_tx_power__init);
             req_payload->power = app_req->u.wifi_tx_power.power;
             break;
         }
+
         case RPC_ID__Req_ConfigHeartbeat : {
-            RPC_ALLOC_ASSIGN(RpcReqConfigHeartbeat, req_config_heartbeat, rpc__req__config_heartbeat__init);
+            RPC_ALLOC_ASSIGN(RpcReqConfigHeartbeat, req_config_heartbeat,
+                             rpc__req__config_heartbeat__init);
             req_payload->enable   = app_req->u.e_heartbeat.enable;
             req_payload->duration = app_req->u.e_heartbeat.duration;
             if (req_payload->enable) {
@@ -160,9 +173,11 @@ int compose_rpc_req(Rpc* req, ctrl_cmd_t* app_req, int32_t* failure_status) {
             }
             break;
         }
+
         case RPC_ID__Req_WifiInit : {
             wifi_init_config_t* p_a = &app_req->u.wifi_init_config;
-            RPC_ALLOC_ASSIGN(RpcReqWifiInit, req_wifi_init, rpc__req__wifi_init__init);
+            RPC_ALLOC_ASSIGN(RpcReqWifiInit, req_wifi_init,
+                             rpc__req__wifi_init__init);
             RPC_ALLOC_ELEMENT(WifiInitConfig, req_payload->cfg, wifi_init_config__init);
 
             req_payload->cfg->static_rx_buf_num      = p_a->static_rx_buf_num;
@@ -189,16 +204,20 @@ int compose_rpc_req(Rpc* req, ctrl_cmd_t* app_req, int32_t* failure_status) {
             req_payload->cfg->feature_caps = p_a->feature_caps;
             break;
         }
+
         case RPC_ID__Req_WifiGetConfig : {
             wifi_cfg_t* p_a = &app_req->u.wifi_config;
-            RPC_ALLOC_ASSIGN(RpcReqWifiGetConfig, req_wifi_get_config, rpc__req__wifi_get_config__init);
+            RPC_ALLOC_ASSIGN(RpcReqWifiGetConfig, req_wifi_get_config,
+                             rpc__req__wifi_get_config__init);
 
             req_payload->iface = p_a->iface;
             break;
         }
+
         case RPC_ID__Req_WifiSetConfig : {
             wifi_cfg_t* p_a = &app_req->u.wifi_config;
-            RPC_ALLOC_ASSIGN(RpcReqWifiSetConfig, req_wifi_set_config, rpc__req__wifi_set_config__init);
+            RPC_ALLOC_ASSIGN(RpcReqWifiSetConfig, req_wifi_set_config,
+                             rpc__req__wifi_set_config__init);
 
             req_payload->iface = p_a->iface;
 
@@ -229,6 +248,9 @@ int compose_rpc_req(Rpc* req, ctrl_cmd_t* app_req, int32_t* failure_status) {
                     RPC_ALLOC_ELEMENT(WifiScanThreshold, p_c_sta->threshold, wifi_scan_threshold__init);
                     p_c_sta->threshold->rssi     = p_a_sta->threshold.rssi;
                     p_c_sta->threshold->authmode = p_a_sta->threshold.authmode;
+                    #if H_PRESENT_IN_ESP_IDF_5_4_0
+                    p_c_sta->threshold->rssi_5g_adjustment = p_a_sta->threshold.rssi_5g_adjustment;
+                    #endif
                     RPC_ALLOC_ELEMENT(WifiPmfConfig, p_c_sta->pmf_cfg, wifi_pmf_config__init);
                     p_c_sta->pmf_cfg->capable  = p_a_sta->pmf_cfg.capable;
                     p_c_sta->pmf_cfg->required = p_a_sta->pmf_cfg.required;
@@ -257,13 +279,16 @@ int compose_rpc_req(Rpc* req, ctrl_cmd_t* app_req, int32_t* failure_status) {
                         H_SET_BIT(WIFI_STA_CONFIG_1_transition_disable, p_c_sta->bitmask);
                     }
 
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 5, 0)
-                    WIFI_STA_CONFIG_1_SET_RESERVED_VAL(p_a_sta->reserved, p_c_sta->bitmask);
-#else
-                    WIFI_STA_CONFIG_1_SET_RESERVED_VAL(p_a_sta->reserved1, p_c_sta->bitmask);
-#endif
+                    #if H_DECODE_WIFI_RESERVED_FIELD
+                    #if H_WIFI_NEW_RESERVED_FIELD_NAMES
+                    WIFI_STA_CONFIG_2_SET_RESERVED_VAL(p_a_sta->reserved2, p_c_sta->he_bitmask);
+                    #else
+                    WIFI_STA_CONFIG_2_SET_RESERVED_VAL(p_a_sta->he_reserved, p_c_sta->he_bitmask);
+                    #endif
+                    #endif
 
-                    p_c_sta->sae_pwe_h2e       = p_a_sta->sae_pwe_h2e;
+                    p_c_sta->sae_pwe_h2e = p_a_sta->sae_pwe_h2e;
+                    p_c_sta->sae_pk_mode = p_a_sta->sae_pk_mode;
                     p_c_sta->failure_retry_cnt = p_a_sta->failure_retry_cnt;
 
                     if (p_a_sta->he_dcm_set) {
@@ -303,9 +328,7 @@ int compose_rpc_req(Rpc* req, ctrl_cmd_t* app_req, int32_t* failure_status) {
                         H_SET_BIT(WIFI_STA_CONFIG_2_he_trig_cqi_feedback_disabled_BIT, p_c_sta->he_bitmask);
                     }
 
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 5, 0)
-                    WIFI_STA_CONFIG_2_SET_RESERVED_VAL(p_a_sta->he_reserved, p_c_sta->he_bitmask);
-#else
+                    #if H_PRESENT_IN_ESP_IDF_5_5_0
                     if (p_a_sta->vht_su_beamformee_disabled) {
                         H_SET_BIT(WIFI_STA_CONFIG_2_vht_su_beamformee_disabled, p_c_sta->he_bitmask);
                     }
@@ -317,14 +340,21 @@ int compose_rpc_req(Rpc* req, ctrl_cmd_t* app_req, int32_t* failure_status) {
                     if (p_a_sta->vht_mcs8_enabled) {
                         H_SET_BIT(WIFI_STA_CONFIG_2_vht_mcs8_enabled, p_c_sta->he_bitmask);
                     }
+                    #endif
 
+                    #if H_DECODE_WIFI_RESERVED_FIELD
+                    #if H_WIFI_NEW_RESERVED_FIELD_NAMES
                     WIFI_STA_CONFIG_2_SET_RESERVED_VAL(p_a_sta->reserved2, p_c_sta->he_bitmask);
-#endif
+                    #else
+                    WIFI_STA_CONFIG_2_SET_RESERVED_VAL(p_a_sta->he_reserved, p_c_sta->he_bitmask);
+                    #endif
+                    #endif
 
                     RPC_REQ_COPY_BYTES(p_c_sta->sae_h2e_identifier, p_a_sta->sae_h2e_identifier,
                                        SAE_H2E_IDENTIFIER_LEN);
                     break;
                 }
+
                 case WIFI_IF_AP : {
                     req_payload->cfg->u_case = WIFI_CONFIG__U_AP;
 
@@ -340,13 +370,26 @@ int compose_rpc_req(Rpc* req, ctrl_cmd_t* app_req, int32_t* failure_status) {
                     p_c_ap->ssid_hidden     = p_a_ap->ssid_hidden;
                     p_c_ap->max_connection  = p_a_ap->max_connection;
                     p_c_ap->beacon_interval = p_a_ap->beacon_interval;
+                    p_c_ap->csa_count       = p_a_ap->csa_count;
+                    p_c_ap->dtim_period     = p_a_ap->dtim_period;
                     p_c_ap->pairwise_cipher = p_a_ap->pairwise_cipher;
                     p_c_ap->ftm_responder   = p_a_ap->ftm_responder;
                     RPC_ALLOC_ELEMENT(WifiPmfConfig, p_c_ap->pmf_cfg, wifi_pmf_config__init);
-                    p_c_ap->pmf_cfg->capable  = p_a_ap->pmf_cfg.capable;
-                    p_c_ap->pmf_cfg->required = p_a_ap->pmf_cfg.required;
+                    p_c_ap->pmf_cfg->capable   = p_a_ap->pmf_cfg.capable;
+                    p_c_ap->pmf_cfg->required  = p_a_ap->pmf_cfg.required;
+                    p_c_ap->sae_pwe_h2e        = p_a_ap->sae_pwe_h2e;
+                    p_c_ap->transition_disable = p_a_ap->transition_disable;
+
+                    #if H_PRESENT_IN_ESP_IDF_5_5_0
+                    p_c_ap->sae_ext = p_a_ap->sae_ext;
+                    RPC_ALLOC_ELEMENT(WifiBssMaxIdleConfig, p_c_ap->bss_max_idle_cfg, wifi_bss_max_idle_config__init);
+                    p_c_ap->bss_max_idle_cfg->period = p_a_ap->bss_max_idle_cfg.period;
+                    p_c_ap->bss_max_idle_cfg->protected_keep_alive = p_a_ap->bss_max_idle_cfg.protected_keep_alive;
+                    p_c_ap->gtk_rekey_interval = p_a_ap->gtk_rekey_interval;
+                    #endif
                     break;
                 }
+
                 default : {
                     ESP_LOGE(TAG, "unexpected wifi iface [%u]\n", p_a->iface);
                     break;
@@ -355,10 +398,12 @@ int compose_rpc_req(Rpc* req, ctrl_cmd_t* app_req, int32_t* failure_status) {
             } /* switch */
             break;
         }
+
         case RPC_ID__Req_WifiScanStart : {
             wifi_scan_config_t* p_a = &app_req->u.wifi_scan_config.cfg;
 
-            RPC_ALLOC_ASSIGN(RpcReqWifiScanStart, req_wifi_scan_start, rpc__req__wifi_scan_start__init);
+            RPC_ALLOC_ASSIGN(RpcReqWifiScanStart, req_wifi_scan_start,
+                             rpc__req__wifi_scan_start__init);
 
             req_payload->block = app_req->u.wifi_scan_config.block;
             if (app_req->u.wifi_scan_config.cfg_set) {
@@ -388,46 +433,62 @@ int compose_rpc_req(Rpc* req, ctrl_cmd_t* app_req, int32_t* failure_status) {
 
                 p_c->home_chan_dwell_time = p_a->home_chan_dwell_time;
 
+                RPC_ALLOC_ELEMENT(WifiScanChannelBitmap, p_c->channel_bitmap, wifi_scan_channel_bitmap__init);
+                p_c->channel_bitmap->ghz_2_channels = p_a->channel_bitmap.ghz_2_channels;
+                p_c->channel_bitmap->ghz_5_channels = p_a->channel_bitmap.ghz_5_channels;
+
                 req_payload->config_set = 1;
             }
             ESP_LOGI(TAG, "Scan start Req\n");
 
             break;
         }
+
         case RPC_ID__Req_WifiScanGetApRecords : {
             RPC_ALLOC_ASSIGN(RpcReqWifiScanGetApRecords, req_wifi_scan_get_ap_records,
                              rpc__req__wifi_scan_get_ap_records__init);
             req_payload->number = app_req->u.wifi_scan_ap_list.number;
             break;
         }
+
         case RPC_ID__Req_WifiDeauthSta : {
-            RPC_ALLOC_ASSIGN(RpcReqWifiDeauthSta, req_wifi_deauth_sta, rpc__req__wifi_deauth_sta__init);
+            RPC_ALLOC_ASSIGN(RpcReqWifiDeauthSta, req_wifi_deauth_sta,
+                             rpc__req__wifi_deauth_sta__init);
             req_payload->aid = app_req->u.wifi_deauth_sta.aid;
             break;
         }
+
         case RPC_ID__Req_WifiSetStorage : {
             wifi_storage_t* p = &app_req->u.wifi_storage;
-            RPC_ALLOC_ASSIGN(RpcReqWifiSetStorage, req_wifi_set_storage, rpc__req__wifi_set_storage__init);
+            RPC_ALLOC_ASSIGN(RpcReqWifiSetStorage, req_wifi_set_storage,
+                             rpc__req__wifi_set_storage__init);
             req_payload->storage = *p;
             break;
         }
+
         case RPC_ID__Req_WifiSetBandwidth : {
-            RPC_ALLOC_ASSIGN(RpcReqWifiSetBandwidth, req_wifi_set_bandwidth, rpc__req__wifi_set_bandwidth__init);
+            RPC_ALLOC_ASSIGN(RpcReqWifiSetBandwidth, req_wifi_set_bandwidth,
+                             rpc__req__wifi_set_bandwidth__init);
             req_payload->ifx = app_req->u.wifi_bandwidth.ifx;
             req_payload->bw  = app_req->u.wifi_bandwidth.bw;
             break;
         }
+
         case RPC_ID__Req_WifiGetBandwidth : {
-            RPC_ALLOC_ASSIGN(RpcReqWifiGetBandwidth, req_wifi_get_bandwidth, rpc__req__wifi_get_bandwidth__init);
+            RPC_ALLOC_ASSIGN(RpcReqWifiGetBandwidth, req_wifi_get_bandwidth,
+                             rpc__req__wifi_get_bandwidth__init);
             req_payload->ifx = app_req->u.wifi_bandwidth.ifx;
             break;
         }
+
         case RPC_ID__Req_WifiSetChannel : {
-            RPC_ALLOC_ASSIGN(RpcReqWifiSetChannel, req_wifi_set_channel, rpc__req__wifi_set_channel__init);
+            RPC_ALLOC_ASSIGN(RpcReqWifiSetChannel, req_wifi_set_channel,
+                             rpc__req__wifi_set_channel__init);
             req_payload->primary = app_req->u.wifi_channel.primary;
             req_payload->second  = app_req->u.wifi_channel.second;
             break;
         }
+
         case RPC_ID__Req_WifiSetCountryCode : {
             RPC_ALLOC_ASSIGN(RpcReqWifiSetCountryCode, req_wifi_set_country_code,
                              rpc__req__wifi_set_country_code__init);
@@ -436,8 +497,10 @@ int compose_rpc_req(Rpc* req, ctrl_cmd_t* app_req, int32_t* failure_status) {
             req_payload->ieee80211d_enabled = app_req->u.wifi_country_code.ieee80211d_enabled;
             break;
         }
+
         case RPC_ID__Req_WifiSetCountry : {
-            RPC_ALLOC_ASSIGN(RpcReqWifiSetCountry, req_wifi_set_country, rpc__req__wifi_set_country__init);
+            RPC_ALLOC_ASSIGN(RpcReqWifiSetCountry, req_wifi_set_country,
+                             rpc__req__wifi_set_country__init);
 
             RPC_ALLOC_ELEMENT(WifiCountry, req_payload->country, wifi_country__init);
             RPC_REQ_COPY_BYTES(req_payload->country->cc, (uint8_t*)&app_req->u.wifi_country.cc[0],
@@ -448,32 +511,41 @@ int compose_rpc_req(Rpc* req, ctrl_cmd_t* app_req, int32_t* failure_status) {
             req_payload->country->policy       = app_req->u.wifi_country.policy;
             break;
         }
+
         case RPC_ID__Req_WifiApGetStaAid : {
-            RPC_ALLOC_ASSIGN(RpcReqWifiApGetStaAid, req_wifi_ap_get_sta_aid, rpc__req__wifi_ap_get_sta_aid__init);
+            RPC_ALLOC_ASSIGN(RpcReqWifiApGetStaAid, req_wifi_ap_get_sta_aid,
+                             rpc__req__wifi_ap_get_sta_aid__init);
 
             uint8_t* p = &app_req->u.wifi_ap_get_sta_aid.mac[0];
             RPC_REQ_COPY_BYTES(req_payload->mac, p, MAC_SIZE_BYTES);
             break;
         }
+
         case RPC_ID__Req_WifiSetProtocol : {
-            RPC_ALLOC_ASSIGN(RpcReqWifiSetProtocol, req_wifi_set_protocol, rpc__req__wifi_set_protocol__init);
+            RPC_ALLOC_ASSIGN(RpcReqWifiSetProtocol, req_wifi_set_protocol,
+                             rpc__req__wifi_set_protocol__init);
             req_payload->ifx             = app_req->u.wifi_protocol.ifx;
             req_payload->protocol_bitmap = app_req->u.wifi_protocol.protocol_bitmap;
             break;
         }
+
         case RPC_ID__Req_WifiGetProtocol : {
-            RPC_ALLOC_ASSIGN(RpcReqWifiGetProtocol, req_wifi_get_protocol, rpc__req__wifi_get_protocol__init);
+            RPC_ALLOC_ASSIGN(RpcReqWifiGetProtocol, req_wifi_get_protocol,
+                             rpc__req__wifi_get_protocol__init);
             req_payload->ifx = app_req->u.wifi_protocol.ifx;
             break;
         }
+
         case RPC_ID__Req_GetCoprocessorFwVersion : {
             RPC_ALLOC_ASSIGN(RpcReqGetCoprocessorFwVersion, req_get_coprocessor_fwversion,
                              rpc__req__get_coprocessor_fw_version__init);
             break;
-#if H_WIFI_DUALBAND_SUPPORT
         }
+
+        #if H_WIFI_DUALBAND_SUPPORT
         case RPC_ID__Req_WifiSetProtocols : {
-            RPC_ALLOC_ASSIGN(RpcReqWifiSetProtocols, req_wifi_set_protocols, rpc__req__wifi_set_protocols__init);
+            RPC_ALLOC_ASSIGN(RpcReqWifiSetProtocols, req_wifi_set_protocols,
+                             rpc__req__wifi_set_protocols__init);
             req_payload->ifx = app_req->u.wifi_protocols.ifx;
 
             RPC_ALLOC_ELEMENT(WifiProtocols, req_payload->protocols, wifi_protocols__init);
@@ -481,13 +553,17 @@ int compose_rpc_req(Rpc* req, ctrl_cmd_t* app_req, int32_t* failure_status) {
             req_payload->protocols->ghz_5g = app_req->u.wifi_protocols.ghz_5g;
             break;
         }
+
         case RPC_ID__Req_WifiGetProtocols : {
-            RPC_ALLOC_ASSIGN(RpcReqWifiGetProtocols, req_wifi_get_protocols, rpc__req__wifi_get_protocols__init);
+            RPC_ALLOC_ASSIGN(RpcReqWifiGetProtocols, req_wifi_get_protocols,
+                             rpc__req__wifi_get_protocols__init);
             req_payload->ifx = app_req->u.wifi_protocols.ifx;
             break;
         }
+
         case RPC_ID__Req_WifiSetBandwidths : {
-            RPC_ALLOC_ASSIGN(RpcReqWifiSetBandwidths, req_wifi_set_bandwidths, rpc__req__wifi_set_bandwidths__init);
+            RPC_ALLOC_ASSIGN(RpcReqWifiSetBandwidths, req_wifi_set_bandwidths,
+                             rpc__req__wifi_set_bandwidths__init);
             req_payload->ifx = app_req->u.wifi_bandwidths.ifx;
 
             RPC_ALLOC_ELEMENT(WifiBandwidths, req_payload->bandwidths, wifi_bandwidths__init);
@@ -495,22 +571,29 @@ int compose_rpc_req(Rpc* req, ctrl_cmd_t* app_req, int32_t* failure_status) {
             req_payload->bandwidths->ghz_5g = app_req->u.wifi_bandwidths.ghz_5g;
             break;
         }
+
         case RPC_ID__Req_WifiGetBandwidths : {
-            RPC_ALLOC_ASSIGN(RpcReqWifiGetBandwidths, req_wifi_get_bandwidths, rpc__req__wifi_get_bandwidths__init);
+            RPC_ALLOC_ASSIGN(RpcReqWifiGetBandwidths, req_wifi_get_bandwidths,
+                             rpc__req__wifi_get_bandwidths__init);
             req_payload->ifx = app_req->u.wifi_bandwidths.ifx;
             break;
         }
+
         case RPC_ID__Req_WifiSetBand : {
-            RPC_ALLOC_ASSIGN(RpcReqWifiSetBand, req_wifi_set_band, rpc__req__wifi_set_band__init);
+            RPC_ALLOC_ASSIGN(RpcReqWifiSetBand, req_wifi_set_band,
+                             rpc__req__wifi_set_band__init);
             req_payload->band = app_req->u.wifi_band;
             break;
         }
+
         case RPC_ID__Req_WifiSetBandMode : {
-            RPC_ALLOC_ASSIGN(RpcReqWifiSetBandMode, req_wifi_set_bandmode, rpc__req__wifi_set_band_mode__init);
+            RPC_ALLOC_ASSIGN(RpcReqWifiSetBandMode, req_wifi_set_bandmode,
+                             rpc__req__wifi_set_band_mode__init);
             req_payload->bandmode = app_req->u.wifi_band_mode;
             break;
-#endif
         }
+        #endif
+
         default : {
             *failure_status = RPC_ERR_UNSUPPORTED_MSG;
             ESP_LOGE(TAG, "Unsupported RPC Req[%u]", req->msg_id);

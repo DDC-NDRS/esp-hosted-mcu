@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2015-2021 Espressif Systems (Shanghai) PTE LTD
+// Copyright 2015-2025 Espressif Systems (Shanghai) PTE LTD
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,10 +32,10 @@
 #include "esp_hosted_transport_init.h"
 
 #define SIMPLIFIED_SDIO_SLAVE   0
-#define SDIO_SLAVE_QUEUE_SIZE   20
-#define BUFFER_SIZE MAX_TRANSPORT_BUF_SIZE
-#define BUFFER_NUM  20
-static uint8_t sdio_slave_rx_buffer[BUFFER_NUM][BUFFER_SIZE];
+#define SDIO_SLAVE_QUEUE_SIZE   CONFIG_ESP_SDIO_TX_Q_SIZE
+#define NUM_RX_BUFFERS          CONFIG_ESP_SDIO_RX_Q_SIZE
+#define BUFFER_SIZE             MAX_TRANSPORT_BUF_SIZE
+static uint8_t sdio_slave_rx_buffer[NUM_RX_BUFFERS][BUFFER_SIZE];
 
 #define SDIO_MEMPOOL_NUM_BLOCKS 40
 static struct hosted_mempool* buf_mp_tx_g;
@@ -44,7 +44,7 @@ static interface_context_t m_if_ctx;
 static interface_handle_t  m_if_hndl;
 static char const TAG[] = "SDIO_SLAVE";
 
-#define SDIO_RX_QUEUE_SIZE CONFIG_ESP_SDIO_RX_Q_SIZE
+#define SDIO_TX_QUEUE_SIZE      CONFIG_ESP_SDIO_TX_Q_SIZE
 
 #if (SIMPLIFIED_SDIO_SLAVE == 0)
 static SemaphoreHandle_t sdio_rx_sem;
@@ -128,7 +128,7 @@ static void start_rx_data_throttling_if_needed(void) {
         pkt_stats.slave_wifi_rx_msg_loaded = queue_load;
 #endif
 
-        load_percent = (queue_load * 100 / SDIO_RX_QUEUE_SIZE);
+        load_percent = (queue_load * 100 / NUM_RX_BUFFERS);
         if (load_percent > g_slv_cfg.throttle_high_threshold) {
             g_slv_state.current_throttling = 1;
             ESP_LOGV(TAG, "start data throttling at host");
@@ -148,7 +148,7 @@ static void stop_rx_data_throttling_if_needed(void) {
         pkt_stats.slave_wifi_rx_msg_loaded = queue_load;
 #endif
 
-        load_percent = (queue_load * 100 / SDIO_RX_QUEUE_SIZE);
+        load_percent = (queue_load * 100 / NUM_RX_BUFFERS);
         if (load_percent < g_slv_cfg.throttle_low_threshold) {
             g_slv_state.current_throttling = 0;
             ESP_LOGV(TAG, "stop data throttling at host");
@@ -186,13 +186,13 @@ IRAM_ATTR static void event_cb(uint8_t val) {
 }
 
 void generate_startup_event(uint8_t cap, uint32_t ext_cap) {
-    struct esp_payload_header* header     = NULL;
-    interface_buffer_handle_t  buf_handle = {0};
-    struct esp_priv_event*     event      = NULL;
-    uint8_t*                   pos        = NULL;
-    uint16_t                   len        = 0;
-    uint8_t                    raw_tp_cap = 0;
-    esp_err_t                  ret        = ESP_OK;
+    struct esp_payload_header* header = NULL;
+    interface_buffer_handle_t buf_handle = {0};
+    struct esp_priv_event* event = NULL;
+    uint8_t* pos = NULL;
+    uint16_t len = 0;
+    uint8_t raw_tp_cap = 0;
+    esp_err_t ret = ESP_OK;
 
     raw_tp_cap = debug_get_raw_tp_conf();
 
@@ -250,7 +250,7 @@ void generate_startup_event(uint8_t cap, uint32_t ext_cap) {
     pos++;
     len++;
 
-    *pos = ESP_PRIV_RX_Q_SIZE;
+    *pos = ESP_PRIV_TX_Q_SIZE;
     pos++;
     len++;
     *pos = LENGTH_1_BYTE;
@@ -274,12 +274,13 @@ void generate_startup_event(uint8_t cap, uint32_t ext_cap) {
 
     ESP_HEXLOGD("sdio_tx_init", buf_handle.payload, buf_handle.payload_len);
 
-#if (SIMPLIFIED_SDIO_SLAVE == 0)
+    #if (SIMPLIFIED_SDIO_SLAVE == 0)
     xSemaphoreTake(sdio_send_queue_sem, portMAX_DELAY);
     ret = sdio_slave_send_queue(buf_handle.payload, buf_handle.payload_len, buf_handle.payload, portMAX_DELAY);
-#else
+    #else
     ret = sdio_slave_transmit(buf_handle.payload, buf_handle.payload_len);
-#endif
+    #endif
+
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "sdio slave tx error, ret : 0x%x\r\n", ret);
         sdio_buffer_tx_free(buf_handle.payload);
@@ -296,14 +297,17 @@ static void sdio_read_done(void* handle) {
 }
 
 static interface_handle_t* sdio_init(void) {
-    esp_err_t ret;
+    #if !SIMPLIFIED_SDIO_SLAVE
+    uint16_t prio_q_idx = 0;
+    #endif
+    esp_err_t ret = ESP_OK;
     sdio_slave_buf_handle_t handle = {0};
-    sdio_slave_config_t     config = {
-#if CONFIG_ESP_SDIO_STREAMING_MODE
+    sdio_slave_config_t config = {
+        #if CONFIG_ESP_SDIO_STREAMING_MODE
         .sending_mode = SDIO_SLAVE_SEND_STREAM,
-#else
+        #else
         .sending_mode = SDIO_SLAVE_SEND_PACKET,
-#endif
+        #endif
         .send_queue_size  = SDIO_SLAVE_QUEUE_SIZE,
         .recv_buffer_size = BUFFER_SIZE,
         .event_cb         = event_cb,
@@ -331,20 +335,20 @@ static interface_handle_t* sdio_init(void) {
     ESP_LOGI(TAG, "%s: sending mode: SDIO_SLAVE_SEND_PACKET", __func__);
 #endif
 #if defined(CONFIG_IDF_TARGET_ESP32C6)
-    ESP_LOGI(TAG, "%s: ESP32-C6 SDIO RxQ[%d] timing[%u]\n", __func__, SDIO_RX_QUEUE_SIZE, config.timing);
+    ESP_LOGI(TAG, "%s: ESP32-C6 SDIO TxQ[%d] timing[%u]\n", __func__, SDIO_TX_QUEUE_SIZE, config.timing);
 #else
-    ESP_LOGI(TAG, "%s: ESP32 SDIO RxQ[%d] timing[%u]\n", __func__, SDIO_RX_QUEUE_SIZE, config.timing);
+    ESP_LOGI(TAG, "%s: ESP32 SDIO TxQ[%d] timing[%u]\n", __func__, SDIO_TX_QUEUE_SIZE, config.timing);
 #endif
 
     if (SIMPLIFIED_SDIO_SLAVE == 0) {
         sdio_send_queue_sem = xSemaphoreCreateCounting(SDIO_SLAVE_QUEUE_SIZE, SDIO_SLAVE_QUEUE_SIZE);
         assert(sdio_send_queue_sem);
 
-        sdio_rx_sem = xSemaphoreCreateCounting(SDIO_RX_QUEUE_SIZE * 3, 0);
+        sdio_rx_sem = xSemaphoreCreateCounting(NUM_RX_BUFFERS * MAX_PRIORITY_QUEUES, 0);
         assert(sdio_rx_sem != NULL);
 
         for (uint16_t prio_q_idx = 0; prio_q_idx < MAX_PRIORITY_QUEUES; prio_q_idx++) {
-            sdio_rx_queue[prio_q_idx] = xQueueCreate(SDIO_RX_QUEUE_SIZE, sizeof(interface_buffer_handle_t));
+            sdio_rx_queue[prio_q_idx] = xQueueCreate(NUM_RX_BUFFERS, sizeof(interface_buffer_handle_t));
             assert(sdio_rx_queue[prio_q_idx] != NULL);
         }
     }
@@ -354,7 +358,7 @@ static interface_handle_t* sdio_init(void) {
         return NULL;
     }
 
-    for (int i = 0; i < BUFFER_NUM; i++) {
+    for (int i = 0; i < NUM_RX_BUFFERS; i++) {
         handle = sdio_slave_recv_register_buf(sdio_slave_rx_buffer[i]);
         assert(handle != NULL);
 
@@ -366,9 +370,11 @@ static interface_handle_t* sdio_init(void) {
     }
 
     /* ESP-Hosted uses bit6 and bit 7 internal use. Rest free for Users */
-    sdio_slave_set_host_intena(SDIO_SLAVE_HOSTINT_SEND_NEW_PACKET | SDIO_SLAVE_HOSTINT_BIT0 | SDIO_SLAVE_HOSTINT_BIT1 |
-                               SDIO_SLAVE_HOSTINT_BIT2 | SDIO_SLAVE_HOSTINT_BIT3 | SDIO_SLAVE_HOSTINT_BIT4 |
-                               SDIO_SLAVE_HOSTINT_BIT5 | SDIO_SLAVE_HOSTINT_BIT6 | SDIO_SLAVE_HOSTINT_BIT7);
+    sdio_slave_set_host_intena(SDIO_SLAVE_HOSTINT_SEND_NEW_PACKET |
+                               SDIO_SLAVE_HOSTINT_BIT0 | SDIO_SLAVE_HOSTINT_BIT1 |
+                               SDIO_SLAVE_HOSTINT_BIT2 | SDIO_SLAVE_HOSTINT_BIT3 |
+                               SDIO_SLAVE_HOSTINT_BIT4 | SDIO_SLAVE_HOSTINT_BIT5 |
+                               SDIO_SLAVE_HOSTINT_BIT6 | SDIO_SLAVE_HOSTINT_BIT7);
 
     ret = sdio_slave_start();
     if (ret != ESP_OK) {
@@ -528,7 +534,8 @@ static void sdio_rx_task(void* pvParameters) {
     interface_buffer_handle_t buf_handle = {0};
 
     while (true) {
-        ret = sdio_slave_recv(&buf_handle.sdio_buf_handle, &buf_handle.payload, &sdio_read_len, portMAX_DELAY);
+        ret = sdio_slave_recv(&buf_handle.sdio_buf_handle, &buf_handle.payload,
+                              &sdio_read_len, portMAX_DELAY);
         if (ret) {
             ESP_LOGE(TAG, "sdio_slave_recv returned failure");
             continue;
@@ -547,7 +554,8 @@ static void sdio_rx_task(void* pvParameters) {
 
         offset = le16toh(header->offset);
         if (buf_handle.payload_len < (len + offset)) {
-            ESP_LOGE(TAG, "%s: err: read_len[%u] < len[%u]+offset[%u]", __func__, buf_handle.payload_len, len, offset);
+            ESP_LOGE(TAG, "%s: err: read_len[%u] < len[%u]+offset[%u]", __func__,
+                     buf_handle.payload_len, len, offset);
             sdio_read_done(buf_handle.sdio_buf_handle);
             continue;
         }
@@ -609,7 +617,8 @@ static int sdio_read(interface_handle_t* if_handle, interface_buffer_handle_t* b
         return ESP_FAIL;
     }
 
-    ret = sdio_slave_recv(&(buf_handle->sdio_buf_handle), &(buf_handle->payload), &(sdio_read_len), portMAX_DELAY);
+    ret = sdio_slave_recv(&(buf_handle->sdio_buf_handle), &(buf_handle->payload),
+                          &sdio_read_len, portMAX_DELAY);
     if (ret) {
         ESP_LOGD(TAG, "sdio_slave_recv returned failure");
         return ESP_FAIL;
@@ -657,9 +666,11 @@ static esp_err_t sdio_reset(interface_handle_t* handle) {
     }
 
     /* ESP-Hosted uses bit6 and bit 7 internal use, rest bits free */
-    sdio_slave_set_host_intena(SDIO_SLAVE_HOSTINT_SEND_NEW_PACKET | SDIO_SLAVE_HOSTINT_BIT0 | SDIO_SLAVE_HOSTINT_BIT1 |
-                               SDIO_SLAVE_HOSTINT_BIT2 | SDIO_SLAVE_HOSTINT_BIT3 | SDIO_SLAVE_HOSTINT_BIT4 |
-                               SDIO_SLAVE_HOSTINT_BIT5 | SDIO_SLAVE_HOSTINT_BIT6 | SDIO_SLAVE_HOSTINT_BIT7);
+    sdio_slave_set_host_intena(SDIO_SLAVE_HOSTINT_SEND_NEW_PACKET |
+                               SDIO_SLAVE_HOSTINT_BIT0 | SDIO_SLAVE_HOSTINT_BIT1 |
+                               SDIO_SLAVE_HOSTINT_BIT2 | SDIO_SLAVE_HOSTINT_BIT3 |
+                               SDIO_SLAVE_HOSTINT_BIT4 | SDIO_SLAVE_HOSTINT_BIT5 |
+                               SDIO_SLAVE_HOSTINT_BIT6 | SDIO_SLAVE_HOSTINT_BIT7);
 
     ret = sdio_slave_start();
     if (ret != ESP_OK) {
@@ -674,9 +685,10 @@ static esp_err_t sdio_reset(interface_handle_t* handle) {
         if (ret != ESP_OK) {
             break;
         }
-#if (SIMPLIFIED_SDIO_SLAVE == 0)
-        xSemaphoreGive(sdio_send_queue_sem);
-#endif
+
+        if (SIMPLIFIED_SDIO_SLAVE == 0) {
+            xSemaphoreGive(sdio_send_queue_sem);
+        }
 
         if (handle) {
             ret = sdio_slave_recv_load_buf(handle);
