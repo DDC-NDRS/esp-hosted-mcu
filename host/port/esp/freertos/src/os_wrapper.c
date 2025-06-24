@@ -139,8 +139,8 @@ void hosted_init_hook(void) {
 
 /* -------- Threads ---------- */
 
-void* hosted_thread_create(char* tname, uint32_t tprio, uint32_t tstack_size, void (*start_routine)(void const*),
-                           void* sr_arg) {
+void* hosted_thread_create(const char* tname, uint32_t tprio, uint32_t tstack_size,
+                           void (*start_routine)(void const *), void* sr_arg) {
     int task_created = RET_OK;
 
     if (!start_routine) {
