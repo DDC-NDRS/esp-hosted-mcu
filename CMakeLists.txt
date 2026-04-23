@@ -123,6 +123,10 @@ if(CONFIG_ESP_HOSTED_ENABLED)
 		list(APPEND srcs "${host_dir}/port/esp/freertos/src/port_esp_hosted_host_uart.c")
 	endif()
 
+	# OpenThread utility functions
+	if(CONFIG_ESP_HOSTED_OT_HOST_ENABLE)
+		list(APPEND srcs "${host_dir}/port/esp/freertos/src/port_esp_hosted_host_ot_util.c")
+	endif()
 endif()
 
 if(EXISTS "${IDF_PATH}/components/esp_driver_sdio")
@@ -137,7 +141,7 @@ endif()
 list(APPEND driver_requires esp_event)
 
 idf_component_register(SRCS ${srcs}
-	PRIV_REQUIRES soc esp_netif esp_timer driver esp_wifi bt esp_http_client console wpa_supplicant
+	PRIV_REQUIRES soc esp_netif esp_timer driver esp_wifi bt esp_http_client console wpa_supplicant openthread
 	REQUIRES ${driver_requires}
 	INCLUDE_DIRS ${pub_include}
 	PRIV_INCLUDE_DIRS ${priv_include})

@@ -24,6 +24,10 @@
 #include "esp_dpp.h"
 #endif
 
+#if H_OT_HOST_ENABLE
+#include "esp_hosted_openthread.h"
+#endif
+
 static const char *TAG = "RPC_WRAP";
 
 uint8_t restart_after_slave_ota = 0;
@@ -2839,3 +2843,76 @@ esp_err_t esp_hosted_cp_ext_coex_disable(void)
 }
 
 #endif
+
+#if H_OT_HOST_ENABLE
+esp_err_t rpc_iface_openthread_rcp_init(void)
+{
+	rcp_feature_control_t feature_control;
+
+	feature_control.feature = FEATURE_OPENTHREAD_RCP;
+	feature_control.command = FEATURE_COMMAND_INIT;
+	feature_control.option  = FEATURE_OPTION_NONE;
+
+	return rpc_iface_feature_control(&feature_control);
+}
+
+esp_err_t rpc_iface_openthread_rcp_deinit(void)
+{
+	rcp_feature_control_t feature_control;
+
+	feature_control.feature = FEATURE_OPENTHREAD_RCP;
+	feature_control.command = FEATURE_COMMAND_DEINIT;
+	feature_control.option  = FEATURE_OPTION_NONE;
+
+	return rpc_iface_feature_control(&feature_control);
+}
+
+esp_err_t rpc_iface_openthread_rcp_start(void)
+{
+	rcp_feature_control_t feature_control;
+
+	feature_control.feature = FEATURE_OPENTHREAD_RCP;
+	feature_control.command = FEATURE_COMMAND_ENABLE;
+	feature_control.option  = FEATURE_OPTION_NONE;
+
+	return rpc_iface_feature_control(&feature_control);
+}
+
+esp_err_t rpc_iface_openthread_rcp_stop(void)
+{
+	rcp_feature_control_t feature_control;
+
+	feature_control.feature = FEATURE_OPENTHREAD_RCP;
+	feature_control.command = FEATURE_COMMAND_DISABLE;
+	feature_control.option  = FEATURE_OPTION_NONE;
+
+	return rpc_iface_feature_control(&feature_control);
+}
+
+esp_err_t rpc_iface_openthread_rcp_query(esp_hosted_openthread_query_t query)
+{
+	rcp_feature_control_t feature_control;
+
+	feature_control.feature = FEATURE_OPENTHREAD_RCP;
+	feature_control.command = FEATURE_COMMAND_QUERY;
+	switch (query) {
+	case HOSTED_OPENTHREAD_QUERY_CONFIGURED:
+		feature_control.option  = FEATURE_OPTION_QUERY_CONFIGURED;
+		break;
+	case HOSTED_OPENTHREAD_QUERY_INITED:
+		feature_control.option  = FEATURE_OPTION_QUERY_INITED;
+		break;
+	case HOSTED_OPENTHREAD_QUERY_ENABLED:
+		feature_control.option  = FEATURE_OPTION_QUERY_ENABLED;
+		break;
+	case HOSTED_OPENTHREAD_QUERY_READY:
+		feature_control.option  = FEATURE_OPTION_QUERY_READY;
+		break;
+	default:
+		ESP_LOGE(TAG, "Invalid Openthread Query");
+		return ESP_FAIL;
+	}
+
+	return rpc_iface_feature_control(&feature_control);
+}
+#endif // H_OT_HOST_ENABLE

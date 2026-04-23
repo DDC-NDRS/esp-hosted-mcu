@@ -79,20 +79,6 @@ static const char TAG[] = "UART_DRIVER";
 #endif
 #endif
 
-// these values should match ESP_UART_PARITY values in Kconfig.projbuild
-enum {
-	HOSTED_UART_PARITY_NONE = 0,
-	HOSTED_UART_PARITY_EVEN = 1,
-	HOSTED_UART_PARITY_ODD = 2,
-};
-
-// these values should match ESP_UART_STOP_BITS values in Kconfig.projbuild
-enum {
-	HOSTED_STOP_BITS_1 = 0,
-	HOSTED_STOP_BITS_1_5 = 1,
-	HOSTED_STOP_BITS_2 = 2,
-};
-
 // for flow control
 static volatile uint8_t wifi_flow_ctrl = 0;
 static void flow_ctrl_task(void* pvParameters);
@@ -490,61 +476,13 @@ static interface_handle_t * h_uart_init(void)
 	}
 
 	uint16_t prio_q_idx = 0;
-	uart_word_length_t uart_word_length;
-	uart_parity_t parity;
-	uart_stop_bits_t stop_bits;
-
-	switch (HOSTED_UART_NUM_DATA_BITS) {
-	case 5:
-		uart_word_length = UART_DATA_5_BITS;
-		break;
-	case 6:
-		uart_word_length = UART_DATA_6_BITS;
-		break;
-	case 7:
-		uart_word_length = UART_DATA_7_BITS;
-		break;
-	case 8:
-		// drop through to default
-	default:
-		uart_word_length = UART_DATA_8_BITS;
-		break;
-	}
-
-	switch (HOSTED_UART_PARITY) {
-	case HOSTED_UART_PARITY_EVEN: // even parity
-		parity = UART_PARITY_EVEN;
-		break;
-	case HOSTED_UART_PARITY_ODD: // odd parity
-		parity = UART_PARITY_ODD;
-		break;
-	case HOSTED_UART_PARITY_NONE: // none
-		// drop through to default
-	default:
-		parity = UART_PARITY_DISABLE;
-		break;
-	}
-
-	switch (HOSTED_UART_STOP_BITS) {
-	case HOSTED_STOP_BITS_1_5: // 1.5 stop bits
-		stop_bits = UART_STOP_BITS_1_5;
-		break;
-	case HOSTED_STOP_BITS_2: // 2 stop bits
-		stop_bits = UART_STOP_BITS_2;
-		break;
-	case HOSTED_STOP_BITS_1: // 1 stop bits
-		// drop through to default
-	default:
-		stop_bits = UART_STOP_BITS_1;
-		break;
-	}
 
 	// initialise UART
 	const uart_config_t uart_config = {
 		.baud_rate = HOSTED_UART_BAUD_RATE,
-		.data_bits = uart_word_length,
-		.parity = parity,
-		.stop_bits = stop_bits,
+		.data_bits = HOSTED_UART_NUM_DATA_BITS,
+		.parity = HOSTED_UART_PARITY,
+		.stop_bits = HOSTED_UART_STOP_BITS,
 		.flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
 		.source_clk = UART_SCLK_DEFAULT,
 	};

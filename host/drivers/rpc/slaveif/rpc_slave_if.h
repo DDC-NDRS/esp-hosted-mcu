@@ -71,6 +71,7 @@ extern "C" {
 typedef enum {
 	FEATURE_NONE,
 	FEATURE_BT,
+	FEATURE_OPENTHREAD_RCP,
 	// add additional features here
 } rpc_feature;
 
@@ -80,12 +81,22 @@ typedef enum {
 	FEATURE_COMMAND_BT_DEINIT,
 	FEATURE_COMMAND_BT_ENABLE,
 	FEATURE_COMMAND_BT_DISABLE,
+	// these can apply to any generic feature
+	FEATURE_COMMAND_INIT,
+	FEATURE_COMMAND_DEINIT,
+	FEATURE_COMMAND_ENABLE,
+	FEATURE_COMMAND_DISABLE,
+	FEATURE_COMMAND_QUERY,
 	// add additional feature commands here
 } rpc_feature_command;
 
 typedef enum {
 	FEATURE_OPTION_NONE,
 	FEATURE_OPTION_BT_DEINIT_RELEASE_MEMORY,
+	FEATURE_OPTION_QUERY_CONFIGURED,
+	FEATURE_OPTION_QUERY_INITED,
+	FEATURE_OPTION_QUERY_ENABLED,
+	FEATURE_OPTION_QUERY_READY,
 	// add additional feature options here
 } rpc_feature_option;
 

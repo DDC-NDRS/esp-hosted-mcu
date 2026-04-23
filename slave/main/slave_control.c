@@ -39,6 +39,10 @@
 #include "slave_gpio_expander.h"
 #include "slave_ext_coex.h"
 
+#if CONFIG_ESP_HOSTED_OT_RCP_ENABLED
+#include "slave_openthread.h"
+#endif
+
 #define IFACE_MAC_SIZE              8 // 6 for MAC-48, 8 for EIU-64, 2 for EFUSE_EXT
 
 #define TIMEOUT_IN_MIN              (60*TIMEOUT_IN_SEC)
@@ -525,7 +529,6 @@ static esp_err_t req_feature_control(Rpc *req, Rpc *resp, void *priv_data)
 	resp_payload->option  = req_payload->option;
 
 	switch (req_payload->feature) {
-
 #ifdef CONFIG_ESP_HOSTED_CP_BT
 	case RPC_FEATURE__Feature_Bluetooth:
 		switch (req_payload->command) {
@@ -557,7 +560,50 @@ static esp_err_t req_feature_control(Rpc *req, Rpc *resp, void *priv_data)
 		}
 		break;
 #endif /* CONFIG_ESP_HOSTED_CP_BT */
-
+#if CONFIG_ESP_HOSTED_OT_RCP_ENABLED
+	case RPC_FEATURE__Feature_Openthread_Rcp:
+		switch(req_payload->command) {
+		case RPC_FEATURE_COMMAND__Feature_Command_Init:
+			RPC_RET_FAIL_IF(slave_openthread_init());
+			break;
+		case RPC_FEATURE_COMMAND__Feature_Command_Deinit:
+			RPC_RET_FAIL_IF(slave_openthread_deinit());
+			break;
+		case RPC_FEATURE_COMMAND__Feature_Command_Enable:
+			RPC_RET_FAIL_IF(slave_openthread_start());
+			break;
+		case RPC_FEATURE_COMMAND__Feature_Command_Disable:
+			RPC_RET_FAIL_IF(slave_openthread_stop());
+			break;
+		case RPC_FEATURE_COMMAND__Feature_Command_Query:
+			{
+				slave_openthread_state_t state = slave_openthread_get_state();
+				switch (req_payload->option) {
+				case RPC_FEATURE_OPTION__Feature_Option_Query_Configured:
+					resp_payload->resp = ESP_OK;
+					break;
+				case RPC_FEATURE_OPTION__Feature_Option_Query_Inited:
+					resp_payload->resp = slave_openthread_state_check(state, SLAVE_OT_STATE_INITED);
+					break;
+				case RPC_FEATURE_OPTION__Feature_Option_Query_Enabled:
+					resp_payload->resp = slave_openthread_state_check(state, SLAVE_OT_STATE_ENABLED);
+					break;
+				case RPC_FEATURE_OPTION__Feature_Option_Query_Ready:
+					resp_payload->resp = slave_openthread_state_check(state, SLAVE_OT_STATE_READY);
+					break;
+				default:
+					ESP_LOGE(TAG, "error: invalid Feature Query Option");
+					break;
+				}
+			}
+			break;
+		default:
+			ESP_LOGE(TAG, "error: invalid OpenThread Feature Control");
+			resp_payload->resp = ESP_ERR_INVALID_ARG;
+			break;
+		}
+		break;
+#endif
 	default:
 		/* Covers:
 		 * - BT feature when BT is disabled
