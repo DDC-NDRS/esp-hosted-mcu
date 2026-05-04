@@ -316,6 +316,7 @@ enum {
   #define H_SPI_HD_HOST_INTERFACE 1
 
   enum {
+    H_SPI_HD_CONFIG_1_DATA_LINE,
     H_SPI_HD_CONFIG_2_DATA_LINES,
     H_SPI_HD_CONFIG_4_DATA_LINES,
   };
@@ -346,7 +347,11 @@ enum {
   #define H_SPI_HD_PORT_CLK                            NULL
 
   #define H_SPI_HD_PIN_D0                              CONFIG_ESP_HOSTED_SPI_HD_GPIO_D0
-  #define H_SPI_HD_PIN_D1                              CONFIG_ESP_HOSTED_SPI_HD_GPIO_D1
+  #if (CONFIG_ESP_HOSTED_SPI_HD_INTERFACE_NUM_DATA_LINES >= 2)
+    #define H_SPI_HD_PIN_D1                              CONFIG_ESP_HOSTED_SPI_HD_GPIO_D1
+  #else
+    #define H_SPI_HD_PIN_D1                              -1
+  #endif
   #if (CONFIG_ESP_HOSTED_SPI_HD_INTERFACE_NUM_DATA_LINES == 4)
     #define H_SPI_HD_PIN_D2                              CONFIG_ESP_HOSTED_SPI_HD_GPIO_D2
     #define H_SPI_HD_PIN_D3                              CONFIG_ESP_HOSTED_SPI_HD_GPIO_D3
@@ -358,7 +363,13 @@ enum {
   #define H_SPI_HD_PIN_CS                              CONFIG_ESP_HOSTED_SPI_HD_GPIO_CS
   #define H_SPI_HD_PIN_CLK                             CONFIG_ESP_HOSTED_SPI_HD_GPIO_CLK
   #define H_SPI_HD_PORT_DATA_READY                     NULL
-  #define H_SPI_HD_PIN_DATA_READY                      CONFIG_ESP_HOSTED_SPI_HD_GPIO_DATA_READY
+  #ifdef CONFIG_ESP_HOSTED_SPI_HD_DATA_READY_ENABLED
+    #define H_SPI_HD_PIN_DATA_READY                      CONFIG_ESP_HOSTED_SPI_HD_GPIO_DATA_READY
+    #define H_SPI_HD_DATA_READY_ENABLED                  1
+  #else
+    #define H_SPI_HD_PIN_DATA_READY                      -1
+    #define H_SPI_HD_DATA_READY_ENABLED                  0
+  #endif
 
   #define H_SPI_HD_CLK_MHZ                             CONFIG_ESP_HOSTED_SPI_HD_CLK_FREQ
   #define H_SPI_HD_MODE                                CONFIG_ESP_HOSTED_SPI_HD_MODE

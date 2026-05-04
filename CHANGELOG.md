@@ -1,5 +1,9 @@
 # Unreleased - Main Branch
 
+- added support for SPI-HD 1-bit mode (SPI 3-wire interface)
+- updated `_h_get_semaphore` and `_h_lock_mutex` to use milliseconds instead of seconds as a timeout parameter
+- added `_h_thread_yield` for use by threads to request a context switch
+
 # Releases
 
 # $${\color{green} \text{2.12.8}}$$

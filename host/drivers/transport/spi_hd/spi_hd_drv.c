@@ -541,9 +541,15 @@ static void spi_hd_read_task(void const* pvParameters)
 	}
 
 	ESP_LOGD(TAG, "Open Data path");
+#if H_SPI_HD_DATA_READY_ENABLED
 	// slave is ready: initialise Data Ready as interrupt input
 	g_h.funcs->_h_config_gpio_as_interrupt(H_SPI_HD_PORT_DATA_READY, H_SPI_HD_PIN_DATA_READY,
 			H_SPI_HD_DR_INTR_EDGE, gpio_dr_isr_handler, NULL);
+	ESP_LOGI(TAG, "DATA_READY interrupt configured");
+#else
+	ESP_LOGI(TAG, "DATA_READY disabled, polling every %d ms",
+			CONFIG_ESP_HOSTED_SPI_HD_POLL_INTERVAL_MS);
+#endif
 
 	// tell slave to open data path
 	data = SPI_HD_CTRL_DATAPATH_ON;
@@ -552,8 +558,14 @@ static void spi_hd_read_task(void const* pvParameters)
 	ESP_LOGD(TAG, "spi_hd_read_task: post open data path");
 	// we are now ready to receive data from slave
 	while (1) {
-		// wait for read semaphore to trigger
+#if H_SPI_HD_DATA_READY_ENABLED
+		// wait for data ready interrupt
 		g_h.funcs->_h_get_semaphore(spi_hd_data_ready_sem, HOSTED_BLOCK_MAX);
+#else
+		// poll mode: wake periodically and check TX_BUF_LEN
+		g_h.funcs->_h_get_semaphore(spi_hd_data_ready_sem,
+				pdMS_TO_TICKS(CONFIG_ESP_HOSTED_SPI_HD_POLL_INTERVAL_MS));
+#endif
 		ESP_LOGV(TAG, "spi_hd_read_task: data ready intr received");
 
 		SPI_HD_DRV_LOCK();
