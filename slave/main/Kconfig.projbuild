@@ -711,12 +711,31 @@ menu "Example Configuration"
 					Baud Rate to Use. Make sure Hardware supports the rate.
 					Standard rates are 9600, 19200, 38400, 57600, 115200, 460800, 921600
 
-			config ESP_UART_NUM_DATA_BITS
-				int "Number of Data Bits"
-				default 8
-				range 5 8
+			choice ESP_UART_PRIV_NUM_DATA_BITS
+				bool "Number of Data Bits"
+				default ESP_UART_PRIV_NUM_DATA_BITS_8
 				help
 					Number of Data Bits to use
+
+				config ESP_UART_PRIV_NUM_DATA_BITS_5
+					bool "5 Bits"
+
+				config ESP_UART_PRIV_NUM_DATA_BITS_6
+					bool "6 Bits"
+
+				config ESP_UART_PRIV_NUM_DATA_BITS_7
+					bool "7 Bits"
+
+				config ESP_UART_PRIV_NUM_DATA_BITS_8
+					bool "8 Bits"
+			endchoice
+
+			config ESP_UART_NUM_DATA_BITS
+				int
+				default 0 if ESP_UART_PRIV_NUM_DATA_BITS_5
+				default 1 if ESP_UART_PRIV_NUM_DATA_BITS_6
+				default 2 if ESP_UART_PRIV_NUM_DATA_BITS_7
+				default 3 if ESP_UART_PRIV_NUM_DATA_BITS_8
 
 			choice ESP_UART_PRIV_PARITY
 				bool "Parity"
@@ -734,8 +753,8 @@ menu "Example Configuration"
 			config ESP_UART_PARITY
 				int
 				default 0 if ESP_UART_PRIV_PARITY_NONE
-				default 1 if ESP_UART_PRIV_PARITY_EVEN
-				default 2 if ESP_UART_PRIV_PARITY_ODD
+				default 2 if ESP_UART_PRIV_PARITY_EVEN
+				default 3 if ESP_UART_PRIV_PARITY_ODD
 
 			choice ESP_UART_PRIV_STOP_BITS
 				bool "Number of Stop Bits"
@@ -752,9 +771,9 @@ menu "Example Configuration"
 
 			config ESP_UART_STOP_BITS
 				int
-				default 0 if ESP_UART_PRIV_STOP_BITS_1
-				default 1 if ESP_UART_PRIV_STOP_BITS_1_5
-				default 2 if ESP_UART_PRIV_STOP_BITS_2
+				default 1 if ESP_UART_PRIV_STOP_BITS_1
+				default 2 if ESP_UART_PRIV_STOP_BITS_1_5
+				default 3 if ESP_UART_PRIV_STOP_BITS_2
 
 			config ESP_UART_GPIO_RESET
 				int "Slave GPIO pin to reset itself"
@@ -1000,6 +1019,19 @@ menu "Example Configuration"
 		default n
 		help
 			Enable Wi-Fi Easy Connect (DPP) support
+
+	menuconfig ESP_HOSTED_OT_RCP_ENABLED
+		depends on OPENTHREAD_ENABLED
+		bool "Enable OpenThread RCP (Radio Co-Processor)"
+		default n
+		help
+			"Enable OpenThread RCP (Radio Co-Processor) support"
+
+	if ESP_HOSTED_OT_RCP_ENABLED
+
+	   rsource ./Kconfig.openthread
+
+	endif
 
 	config ESP_HOSTED_ALLOW_FULL_APP_DESC
 		bool "Return the Full App Descriptor"

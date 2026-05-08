@@ -1,5 +1,8 @@
 # Unreleased - Main Branch
 
+- OpenThread: added OpenThread over dedicated UART support
+  - co-processor is the OpenThead RCP (Radio Co-Processor)
+  - added host examples: `host_openthread_border_router`, `host_openthread_cli`
 - Common Mempool: fixed build error on ESP-IDF v6.x when using PicolibC with `CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY` disabled
 - Host: removed Unicode encoded characters in cmake file to prevent Windows build failure
 

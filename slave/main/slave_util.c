@@ -6,6 +6,7 @@
 
 #include "esp_heap_caps.h"
 
+#include "slave_config.h"
 #include "slave_util.h"
 
 void * slave_util_malloc(size_t size, hosted_mem_cap_t cap)

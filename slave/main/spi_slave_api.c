@@ -356,6 +356,14 @@ void generate_startup_event(uint8_t cap, uint32_t ext_cap)
 	*pos = LENGTH_1_BYTE;               pos++;len++;
 	*pos = cap;                         pos++;len++;
 
+	/* TLV - Extended Capability */
+	*pos = ESP_PRIV_CAP_EXT;            pos++;len++;
+	*pos = LENGTH_4_BYTE;               pos++;len++;
+	*pos = (ext_cap) & 0xFF;            pos++;len++;
+	*pos = (ext_cap >> 8) & 0xFF;       pos++;len++;
+	*pos = (ext_cap >> 16) & 0xFF;      pos++;len++;
+	*pos = (ext_cap >> 24) & 0xFF;      pos++;len++;
+
 	*pos = ESP_PRIV_TEST_RAW_TP;        pos++;len++;
 	*pos = LENGTH_1_BYTE;               pos++;len++;
 	*pos = raw_tp_cap;                  pos++;len++;

@@ -43,6 +43,10 @@ if (CONFIG_ESP_HOSTED_NETWORK_SPLIT_ENABLED)
 	list(APPEND COMPONENT_SRCS "slave_network_split.c")
 endif()
 
+if (CONFIG_ESP_HOSTED_OT_RCP_ENABLED)
+	list(APPEND COMPONENT_SRCS "slave_openthread.c")
+endif()
+
 set(COMPONENT_ADD_INCLUDEDIRS
 	"."
 	"${common_dir}"

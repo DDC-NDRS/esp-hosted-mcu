@@ -546,7 +546,7 @@ static void print_ext_capabilities(uint8_t * ptr)
 		((uint32_t)ptr[2] << 16) +
 		((uint32_t)ptr[3] << 24);
 
-	ESP_LOGI(TAG, "Extended Features supported:");
+	ESP_LOGI(TAG, "Extended Features supported: [%" PRIX32 "]", cap);;
 #if H_SPI_HD_HOST_INTERFACE
 	if (cap & ESP_SPI_HD_INTERFACE_SUPPORT_2_DATA_LINES)
 		ESP_LOGI(TAG, "\t * SPI HD 2 data lines interface");
@@ -561,8 +561,10 @@ static void print_ext_capabilities(uint8_t * ptr)
 		ESP_LOGI(TAG, "\t * WLAN over UART");
 	if (cap & ESP_BT_VHCI_UART_SUPPORT)
 		ESP_LOGI(TAG, "\t * BT over UART (VHCI)");
-#else
-	ESP_LOGI(TAG, "\t No extended features. capabilities[%" PRIu32 "]", cap);
+#endif
+#if CONFIG_ESP_HOSTED_OT_HOST_ENABLE
+	if (cap & ESP_OT_SUPPORT)
+		ESP_LOGI(TAG, "\t * OpenThread");
 #endif
 }
 

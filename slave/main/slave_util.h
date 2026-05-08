@@ -8,6 +8,7 @@
 #define __SLAVE_UTIL_H__
 
 #include "slave_config.h"
+#include "driver/uart.h"
 
 #include "mempool.h"
 
