@@ -1192,10 +1192,17 @@ ESP32XX_SDIO_CLK_FREQ_KHZ_RANGE_MAX := 50000
 			int "Polling interval when DATA_READY is disabled (ms)"
 			depends on !ESP_HOSTED_SPI_HD_DATA_READY_ENABLED
 			default 5
-			range 1 100
+			range 0 100
 			help
 				How often the host polls the slave TX_BUF_LEN register when
 				DATA_READY GPIO is not used.
+				Setting to 0 causes host to continually poll for data.
+
+		### warning if FreeRTOS clock tick is too coarse for polling interval
+		if (!ESP_HOSTED_SPI_HD_DATA_READY_ENABLED) && (ESP_HOSTED_SPI_HD_POLL_INTERVAL_MS != 0) && (ESP_HOSTED_SPI_HD_POLL_INTERVAL_MS < 10) && (FREERTOS_HZ <= 100)
+			comment "Set FreeRTOS -> Kernel -> configTICK_RATE_HZ to a value greater than 100 to support this polling interval"
+			comment "Recommended configTICK_RATE_HZ value is 1000"
+		endif
 
 		choice ESP_HOSTED_SPI_HD_DATAREADY_GPIO_CONFIG
 			depends on ESP_HOSTED_SPI_HD_DATA_READY_ENABLED

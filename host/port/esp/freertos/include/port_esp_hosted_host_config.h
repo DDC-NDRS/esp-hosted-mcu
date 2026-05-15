@@ -369,6 +369,7 @@ enum {
   #else
     #define H_SPI_HD_PIN_DATA_READY                      -1
     #define H_SPI_HD_DATA_READY_ENABLED                  0
+    #define H_SPI_HD_POLL_INTERVAL_MS                    CONFIG_ESP_HOSTED_SPI_HD_POLL_INTERVAL_MS
   #endif
 
   #define H_SPI_HD_CLK_MHZ                             CONFIG_ESP_HOSTED_SPI_HD_CLK_FREQ
