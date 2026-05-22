@@ -1,6 +1,7 @@
 # Unreleased - Main Branch
 
 - added support for SPI-HD 1-bit mode (SPI 3-wire interface)
+  - **NOTE**: SPI-HD 1-bit mode is only supported on ESP-IDF v6.1 and above and requires [git Commit bf10423](https://github.com/espressif/esp-idf/commit/bf10423a5b01888b33ab1f4e45ef5a880eed69e6)
 - updated `_h_get_semaphore` and `_h_lock_mutex` to use milliseconds instead of seconds as a timeout parameter
 - added `_h_thread_yield` for use by threads to request a context switch
 

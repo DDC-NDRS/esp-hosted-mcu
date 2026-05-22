@@ -59,10 +59,6 @@ static uint64_t get_reserved_pin_mask(void)
 	add_pin(&mask, CONFIG_ESP_SPI_HD_GPIO_D3);
 #endif
 #endif
-#if (CONFIG_ESP_SPI_HD_INTERFACE_NUM_DATA_LINES == 4)
-	add_pin(&mask, CONFIG_ESP_SPI_HD_GPIO_D2);
-	add_pin(&mask, CONFIG_ESP_SPI_HD_GPIO_D3);
-#endif
 #ifdef CONFIG_ESP_SPI_HD_DATA_READY_ENABLED
 	add_pin(&mask, CONFIG_ESP_SPI_HD_GPIO_DATA_READY);
 #endif

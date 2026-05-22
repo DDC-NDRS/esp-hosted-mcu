@@ -10,6 +10,7 @@
 #include "sdkconfig.h"
 #include "esp_task.h"
 
+#include "esp_idf_version.h"
 #include "esp_wifi_remote.h"
 
 #ifdef CONFIG_ESP_HOSTED_ENABLED
@@ -338,6 +339,10 @@ enum {
   #endif
 
   #define H_SPI_HD_HOST_NUM_DATA_LINES                 CONFIG_ESP_HOSTED_SPI_HD_INTERFACE_NUM_DATA_LINES
+
+#if (H_SPI_HD_HOST_NUM_DATA_LINES == 1) && (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6,1,0))
+#error "1-bit SPI-HD mode only supported in ESP-IDF v6.1 and above"
+#endif
 
   #define H_SPI_HD_PORT_D0                             NULL
   #define H_SPI_HD_PORT_D1                             NULL

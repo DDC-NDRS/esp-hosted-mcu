@@ -1155,6 +1155,7 @@ ESP32XX_SDIO_CLK_FREQ_KHZ_RANGE_MAX := 50000
 				bool "2 data lines"
 
 			config ESP_HOSTED_SPI_HD_PRIV_INTERFACE_1_DATA_LINE
+				depends on $(ESP_IDF_VERSION) >= "6.1"
 				bool "1 data line"
 		endchoice
 
@@ -1514,14 +1515,14 @@ ESP32XX_SPI_HD_CLK_FREQ_RANGE_MAX := 40
 		config ESP_HOSTED_SPI_HD_TX_Q_SIZE
 			int "ESP to Host queue size"
 			default 10 if OPENTHREAD_ENABLED
-			default 20
+			default 15
 			help
 				Very small tx queue will lower ESP -- SPI Half-duplex --> Host data rate
 
 		config ESP_HOSTED_SPI_HD_RX_Q_SIZE
 			int "Host to ESP queue size"
 			default 10 if OPENTHREAD_ENABLED
-			default 20
+			default 15
 			help
 				Very small RX queue will lower ESP <-- SPI Half-duplex -- Host data rate
 

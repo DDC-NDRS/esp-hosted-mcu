@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <inttypes.h>
 
+#include "esp_idf_version.h"
 #include "driver/gpio.h"
 #include "driver/spi_slave_hd.h"
 
@@ -39,6 +40,10 @@ static const char TAG[] = "SPI_HD_DRIVER";
 
 /* SPI HD settings */
 #define NUM_DATA_BITS              CONFIG_ESP_SPI_HD_INTERFACE_NUM_DATA_LINES
+
+#if (NUM_DATA_BITS == 1) && (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6,1,0))
+#error "1-bit SPI-HD mode only supported in ESP-IDF v6.1 and above"
+#endif
 
 #define ESP_SPI_HD_MODE            CONFIG_ESP_SPI_HD_MODE
 #define GPIO_CS                    CONFIG_ESP_SPI_HD_GPIO_CS
@@ -618,16 +623,14 @@ static interface_handle_t * esp_spi_hd_init(void)
 
 #ifdef CONFIG_ESP_SPI_HD_DATA_READY_ENABLED
 	/* Configuration for data_ready line */
-	{
-		gpio_config_t io_data_ready_conf={
-			.intr_type = GPIO_INTR_DISABLE,
-			.mode = GPIO_MODE_OUTPUT,
-			.pin_bit_mask = GPIO_MASK_DATA_READY
-		};
-		gpio_config(&io_data_ready_conf);
-		reset_dataready_gpio();
-		gpio_set_pull_mode(GPIO_DATA_READY, H_DR_PULL_REGISTER);
-	}
+	gpio_config_t io_data_ready_conf={
+		.intr_type = GPIO_INTR_DISABLE,
+		.mode = GPIO_MODE_OUTPUT,
+		.pin_bit_mask = GPIO_MASK_DATA_READY
+	};
+	gpio_config(&io_data_ready_conf);
+	reset_dataready_gpio();
+	gpio_set_pull_mode(GPIO_DATA_READY, H_DR_PULL_REGISTER);
 #endif
 
 	/* Enable pull-ups on SPI lines
