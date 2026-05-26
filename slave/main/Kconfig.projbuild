@@ -1049,7 +1049,7 @@ menu "Example Configuration"
 
 	if ESP_HOSTED_OT_RCP_ENABLED
 
-	   rsource ./Kconfig.openthread
+	   rsource "./Kconfig.openthread"
 
 	endif
 

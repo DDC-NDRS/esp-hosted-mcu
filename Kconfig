@@ -625,14 +625,14 @@ ESP32XX_SPI_CLK_FREQ_RANGE_MAX := 40
 
 		config ESP_HOSTED_SPI_TX_Q_SIZE
 			int "ESP to Host SPI queue size"
-			default 7 if OPENTHREAD_ENABLED
+			default 7 if ESP_HOSTED_HOST_OT_ENABLE
 			default 20
 			help
 				Very small tx queue will lower ESP -- SPI --> Host data rate
 
 		config ESP_HOSTED_SPI_RX_Q_SIZE
 			int "Host to ESP SPI queue size"
-			default 7 if OPENTHREAD_ENABLED
+			default 7 if ESP_HOSTED_HOST_OT_ENABLE
 			default 20
 			help
 				Very small RX queue will lower ESP <-- SPI -- Host data rate
@@ -1107,14 +1107,14 @@ ESP32XX_SDIO_CLK_FREQ_KHZ_RANGE_MAX := 50000
 
 			config ESP_HOSTED_SDIO_TX_Q_SIZE
 				int "Host SDIO Tx queue size"
-				default 10 if OPENTHREAD_ENABLED
+				default 10 if ESP_HOSTED_HOST_OT_ENABLE
 				default 20
 				help
 					Very small tx queue will lower data rate
 
 			config ESP_HOSTED_SDIO_RX_Q_SIZE
 				int "Host SDIO Rx queue size"
-				default 10 if OPENTHREAD_ENABLED
+				default 10 if ESP_HOSTED_HOST_OT_ENABLE
 				default 20
 				help
 					Very small RX queue will lower data rate
@@ -1514,15 +1514,15 @@ ESP32XX_SPI_HD_CLK_FREQ_RANGE_MAX := 40
 
 		config ESP_HOSTED_SPI_HD_TX_Q_SIZE
 			int "ESP to Host queue size"
-			default 10 if OPENTHREAD_ENABLED
-			default 15
+			default 10 if ESP_HOSTED_HOST_OT_ENABLE
+			default 20
 			help
 				Very small tx queue will lower ESP -- SPI Half-duplex --> Host data rate
 
 		config ESP_HOSTED_SPI_HD_RX_Q_SIZE
 			int "Host to ESP queue size"
-			default 10 if OPENTHREAD_ENABLED
-			default 15
+			default 10 if ESP_HOSTED_HOST_OT_ENABLE
+			default 20
 			help
 				Very small RX queue will lower ESP <-- SPI Half-duplex -- Host data rate
 
@@ -1936,23 +1936,23 @@ ESP32XX_SPI_HD_CLK_FREQ_RANGE_MAX := 40
 			URIs used to generate the QR code should be less than this length.
 			Increase this value if the received URI can be larger
 
-	menuconfig ESP_HOSTED_OT_HOST_ENABLE
-		depends on OPENTHREAD_ENABLED
-		bool "Enable OpenThread Host Support"
+	menuconfig ESP_HOSTED_HOST_OT_ENABLE
+		depends on OPENTHREAD_ENABLED || ZB_ENABLED
+		bool "Enable OpenThread/Zigbee Host Support"
 		default n
 		help
-			"Enable OpenThread Host support. It will communicate with the OpenThread RCP on the co-processor"
+			"Enable OpenThread/Zigbee Host support. It will communicate with the OpenThread RCP on the co-processor"
 
-	if ESP_HOSTED_OT_HOST_ENABLE
+	if ESP_HOSTED_HOST_OT_ENABLE
 
-		if !OPENTHREAD_FTD
+		if OPENTHREAD_ENABLED && !OPENTHREAD_FTD
 			comment "Full Thread Device must be selected:"
 			comment"   Component config → OpenThread → Thread Core Features"
 			comment"      → Thread device type → Full Thread Device"
 		endif
 
 		choice ESP_HOSTED_OT_INTERFACE
-			bool "OpenThread Transport"
+			bool "OpenThread/Zigbee Transport"
 			default ESP_HOSTED_OT_TRANSPORT_UART
 			help
 				Transport used communicate with OpenThread RCP
