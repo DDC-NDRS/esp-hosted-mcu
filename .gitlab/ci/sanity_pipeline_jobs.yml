@@ -15,7 +15,9 @@ premerge_check:
 ###
 
 ### protocols/mqtt example
-sanity_build_idf_master_mqtt:
+### IDF master and v6.x don't build mqtt example with wifi-remote and ESP-Hosted
+### so we only verify mqtt example against earlier IDF
+sanity_build_idf_release_mqtt:
   variables:
     EXAMPLE_CI_FILE: "sdkconfig.ci.p4_wifi"
   rules:
@@ -24,7 +26,7 @@ sanity_build_idf_master_mqtt:
   image: espressif/idf:${IDF_VER}
   parallel:
     matrix:
-      - IDF_VER: ["latest", "release-v6.0", "release-v5.5"]
+      - IDF_VER: ["release-v5.5"]
         IDF_TARGET: ["esp32p4"]
         IDF_SLAVE_TARGET: ["esp32c6", "esp32c5"]
 
