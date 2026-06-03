@@ -614,8 +614,8 @@ static interface_handle_t * esp_spi_hd_init(void)
 	uint16_t prio_q_idx = 0;
 	uint8_t init_value[SOC_SPI_MAXIMUM_BUFFER_SIZE] = {0x0}; // used to init SPI shared registers
 
-	spi_bus_config_t bus_cfg;
-	spi_slave_hd_slot_config_t slave_hd_cfg;
+	spi_bus_config_t bus_cfg = { 0 };
+	spi_slave_hd_slot_config_t slave_hd_cfg = { 0 };
 
 	// get SPI HD bus and slot configurations
 	esp_spi_hd_get_bus_cfg(&bus_cfg);

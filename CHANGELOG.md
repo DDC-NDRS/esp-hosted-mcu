@@ -1,5 +1,10 @@
 # Unreleased - Main Branch
 
+- added gpios for `ESP32_P4X_C5_Function_EV_Board V2.0`
+- fix build break for IDF v6 when enable power save (API renamed)
+- update Kconfig to check for config `SOC_GPIO_SUPPORT_HP_PERIPH_PD_SLEEP_WAKEUP` introduced in IDF v6
+- fixed bug causing a crash in SPI-HD interface with IDF v6.1 due to new uninitialised member in `spi_bus_config_t`
+- reduced default number of buffers for SPI-HD and SPI-FD to resolve memory issues
 - Zigbee:
   - added support for Zigbee
   - added Home Automation thermostat on a Zigbee Coordinator example
