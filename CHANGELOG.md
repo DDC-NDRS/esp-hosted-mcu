@@ -1,5 +1,9 @@
 # Unreleased - Main Branch
 
+# Releases
+
+# $${\color{green} \text{2.12.9}}$$
+
 - added gpios for `ESP32_P4X_C5_Function_EV_Board V2.0`
 - fix build break for IDF v6 when enable power save (API renamed)
 - update Kconfig to check for config `SOC_GPIO_SUPPORT_HP_PERIPH_PD_SLEEP_WAKEUP` introduced in IDF v6
@@ -12,8 +16,6 @@
   - **NOTE**: SPI-HD 1-bit mode is only supported on ESP-IDF v6.1 and above and requires [git Commit bf10423](https://github.com/espressif/esp-idf/commit/bf10423a5b01888b33ab1f4e45ef5a880eed69e6)
 - updated `_h_get_semaphore` and `_h_lock_mutex` to use milliseconds instead of seconds as a timeout parameter
 - added `_h_thread_yield` for use by threads to request a context switch
-
-# Releases
 
 # $${\color{green} \text{2.12.8}}$$
 
