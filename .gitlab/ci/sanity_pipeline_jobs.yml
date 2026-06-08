@@ -218,6 +218,7 @@ sanity_build_zigbee_examples:
 
 promote_staging_to_main:
   stage: deploy
+  dependencies: []
   rules:
     - if: $CI_COMMIT_BRANCH == "staging" && $CI_PIPELINE_SOURCE == "push"
   script:
