@@ -9,6 +9,7 @@
 
 #include "sdkconfig.h"
 #include "esp_task.h"
+#include "esp_idf_version.h"
 
 #include "esp_idf_version.h"
 #include "esp_wifi_remote.h"
@@ -585,6 +586,16 @@ enum {
     #define H_HOST_PS_ALLOWED 0
   #endif
 
+  /**
+   * In IDF 6.0.0 and above,
+   * esp_deep_sleep_enable_gpio_wakeup() is now
+   * esp_sleep_enable_gpio_wakeup_on_hp_periph_powerdown()
+   */
+  #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    #define H_HOST_USE_HP_PERIPH_POWERDOWN 1
+  #else
+    #define H_HOST_USE_HP_PERIPH_POWERDOWN 0
+  #endif
   /* Amend later for light sleep */
 #else
     #define H_HOST_PS_ALLOWED 0
