@@ -1153,12 +1153,21 @@ ESP32XX_SDIO_CLK_FREQ_KHZ_RANGE_MAX := 50000
 
 			config ESP_HOSTED_SPI_HD_PRIV_INTERFACE_2_DATA_LINES
 				bool "2 data lines"
+
+			config ESP_HOSTED_SPI_HD_PRIV_INTERFACE_1_DATA_LINE
+				depends on $(ESP_IDF_VERSION) >= "6.1"
+				bool "1 data line"
 		endchoice
+
+		### SPI-HD 1-bit mode not compatible with 2/4-bit modes
+		comment "Make sure co-processor is also configured for 1 data line or SPI-HD transport will not work"
+			depends on ESP_HOSTED_SPI_HD_PRIV_INTERFACE_1_DATA_LINE
 
 		config ESP_HOSTED_SPI_HD_INTERFACE_NUM_DATA_LINES
 			int
 			default 4 if ESP_HOSTED_SPI_HD_PRIV_INTERFACE_4_DATA_LINES
 			default 2 if ESP_HOSTED_SPI_HD_PRIV_INTERFACE_2_DATA_LINES
+			default 1 if ESP_HOSTED_SPI_HD_PRIV_INTERFACE_1_DATA_LINE
 
 		choice ESP_HOSTED_SPI_HD_RESET_GPIO_CONFIG
 			bool "RESET GPIO Config"
@@ -1173,7 +1182,31 @@ ESP32XX_SDIO_CLK_FREQ_KHZ_RANGE_MAX := 50000
 				bool "RESET: Active Low"
 		endchoice
 
+		config ESP_HOSTED_SPI_HD_DATA_READY_ENABLED
+			bool "Use DATA_READY GPIO (interrupt-driven)"
+			default y
+			help
+				Enable to use a dedicated GPIO for DATA_READY signaling from slave.
+				Disable for polled mode (saves one GPIO, adds ~1-5 ms latency).
+
+		config ESP_HOSTED_SPI_HD_POLL_INTERVAL_MS
+			int "Polling interval when DATA_READY is disabled (ms)"
+			depends on !ESP_HOSTED_SPI_HD_DATA_READY_ENABLED
+			default 5
+			range 0 100
+			help
+				How often the host polls the slave TX_BUF_LEN register when
+				DATA_READY GPIO is not used.
+				Setting to 0 causes host to continually poll for data.
+
+		### warning if FreeRTOS clock tick is too coarse for polling interval
+		if (!ESP_HOSTED_SPI_HD_DATA_READY_ENABLED) && (ESP_HOSTED_SPI_HD_POLL_INTERVAL_MS != 0) && (ESP_HOSTED_SPI_HD_POLL_INTERVAL_MS < 10) && (FREERTOS_HZ <= 100)
+			comment "Set FreeRTOS -> Kernel -> configTICK_RATE_HZ to a value greater than 100 to support this polling interval"
+			comment "Recommended configTICK_RATE_HZ value is 1000"
+		endif
+
 		choice ESP_HOSTED_SPI_HD_DATAREADY_GPIO_CONFIG
+			depends on ESP_HOSTED_SPI_HD_DATA_READY_ENABLED
 			bool "DataReady GPIO Config"
 			default ESP_HOSTED_SPI_HD_DR_ACTIVE_HIGH
 
@@ -1304,6 +1337,7 @@ ESP32XX_SDIO_CLK_FREQ_KHZ_RANGE_MAX := 50000
 				default 100
 
 			config ESP_HOSTED_SPI_HD_GPIO_D1
+				depends on !ESP_HOSTED_SPI_HD_PRIV_INTERFACE_1_DATA_LINE
 				int "GPIO pin for Host D1"
 				default 48 if ESP_HOSTED_P4_C5_CORE_BOARD
 				default 49 if ESP_HOSTED_P4_C6_CORE_BOARD || ESP_HOSTED_P4_C61_CORE_BOARD
@@ -1405,6 +1439,7 @@ ESP32XX_SDIO_CLK_FREQ_KHZ_RANGE_MAX := 50000
 				default 100
 
 			config ESP_HOSTED_SPI_HD_GPIO_DATA_READY
+				depends on ESP_HOSTED_SPI_HD_DATA_READY_ENABLED
 				int "GPIO pin for data ready interrupt"
 				default 47 if ESP_HOSTED_P4_C5_CORE_BOARD
 				default 53 if ESP_HOSTED_P4_C6_CORE_BOARD || ESP_HOSTED_P4_C61_CORE_BOARD
@@ -1480,14 +1515,14 @@ ESP32XX_SPI_HD_CLK_FREQ_RANGE_MAX := 40
 		config ESP_HOSTED_SPI_HD_TX_Q_SIZE
 			int "ESP to Host queue size"
 			default 10 if OPENTHREAD_ENABLED
-			default 20
+			default 15
 			help
 				Very small tx queue will lower ESP -- SPI Half-duplex --> Host data rate
 
 		config ESP_HOSTED_SPI_HD_RX_Q_SIZE
 			int "Host to ESP queue size"
 			default 10 if OPENTHREAD_ENABLED
-			default 20
+			default 15
 			help
 				Very small RX queue will lower ESP <-- SPI Half-duplex -- Host data rate
 

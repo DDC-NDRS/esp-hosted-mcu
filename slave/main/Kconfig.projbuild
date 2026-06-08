@@ -524,12 +524,21 @@ menu "Example Configuration"
 
 				config ESP_SPI_HD_PRIV_INTERFACE_2_DATA_LINES
 					bool "2 data lines"
+
+				config ESP_SPI_HD_PRIV_INTERFACE_1_DATA_LINE
+					depends on $(ESP_IDF_VERSION) >= "6.1"
+					bool "1 data line"
 			endchoice
+
+			### SPI-HD 1-bit mode not compatible with 2/4-bit modes
+			comment "Make sure host is also configured for 1 data line or SPI-HD transport will not work"
+				depends on ESP_SPI_HD_PRIV_INTERFACE_1_DATA_LINE
 
 			config ESP_SPI_HD_INTERFACE_NUM_DATA_LINES
 				int
 				default 4 if ESP_SPI_HD_PRIV_INTERFACE_4_DATA_LINES
 				default 2 if ESP_SPI_HD_PRIV_INTERFACE_2_DATA_LINES
+				default 1 if ESP_SPI_HD_PRIV_INTERFACE_1_DATA_LINE
 
 			menu "GPIOs"
 
@@ -570,6 +579,7 @@ menu "Example Configuration"
 						SPI HD controller Host D0
 
 				config ESP_SPI_HD_GPIO_D1
+					depends on !ESP_SPI_HD_PRIV_INTERFACE_1_DATA_LINE
 					int "Slave GPIO pin for Host D1"
 					default 21 if ESP_HOST_DEV_BOARD_P4_FUNC_BOARD
 					default 7 if ESP_HOST_DEV_BOARD_P4_C5_CORE
@@ -606,7 +616,16 @@ menu "Example Configuration"
 					help
 						SPI HD controller Host D3
 
+			config ESP_SPI_HD_DATA_READY_ENABLED
+				bool "Use DATA_READY GPIO"
+				default y
+				help
+					Enable to use a dedicated GPIO for signaling host that slave has
+					data to be read. Disable to save one GPIO pin — host will poll the
+					TX_BUF_LEN register instead (adds ~1-5 ms latency).
+
 				config ESP_SPI_HD_GPIO_DATA_READY
+					depends on ESP_SPI_HD_DATA_READY_ENABLED
 					int "Slave GPIO pin for Data Ready"
 					default 2 if ESP_HOST_DEV_BOARD_P4_FUNC_BOARD
 					default 28 if ESP_HOST_DEV_BOARD_P4_C5_CORE
@@ -621,6 +640,7 @@ menu "Example Configuration"
 						Slave GPIO pin for indicating host that SPI slave has data to be read by host
 
 				choice ESP_SPI_HD_DATAREADY_GPIO_CONFIG
+					depends on ESP_SPI_HD_DATA_READY_ENABLED
 					bool "DataReady GPIO Config"
 					default ESP_DR_ACTIVE_HIGH
 					help
