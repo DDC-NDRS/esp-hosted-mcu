@@ -564,7 +564,7 @@ static void print_ext_capabilities(uint8_t * ptr)
 	if (cap & ESP_BT_VHCI_UART_SUPPORT)
 		ESP_LOGI(TAG, "\t * BT over UART (VHCI)");
 #endif
-#if CONFIG_ESP_HOSTED_OT_HOST_ENABLE
+#if H_HOST_OT_ENABLE
 	if (cap & ESP_OT_SUPPORT)
 		ESP_LOGI(TAG, "\t * OpenThread");
 #endif
